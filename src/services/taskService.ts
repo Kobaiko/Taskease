@@ -75,9 +75,3 @@ export async function updateSubtaskStatus(taskId: string, subtaskId: string, com
     updatedAt: serverTimestamp()
   });
 }
-
-export async function verifyTaskExists(taskId: string): Promise<boolean> {
-  const taskRef = doc(db, TASKS_COLLECTION, taskId);
-  const taskDoc = await getDoc(taskRef);
-  return taskDoc.exists();
-}

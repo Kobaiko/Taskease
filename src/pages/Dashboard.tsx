@@ -8,7 +8,7 @@ import { CookieConsent } from '../components/CookieConsent';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { Logo } from '../components/Logo';
 import { useAuth } from '../contexts/AuthContext';
-import { getUserTasks, createTask, updateTask, deleteTask, updateSubtaskStatus, verifyTaskExists } from '../services/taskService';
+import { getUserTasks, createTask, updateTask, deleteTask, updateSubtaskStatus } from '../services/taskService';
 import { saveUserTheme, getUserTheme } from '../services/userService';
 import { getUserCredits } from '../services/creditService';
 import type { Task, SubTask } from '../types';
@@ -103,25 +103,11 @@ export function Dashboard() {
 
   const handleToggleSubTask = async (taskId: string, subTaskId: string) => {
     try {
-      // First verify the task exists in Firestore
-      const taskExists = await verifyTaskExists(taskId);
-      if (!taskExists) {
-        setTasks(prevTasks => prevTasks.filter(t => t.id !== taskId)); // Remove from local state if not in Firestore
-        setError('Task no longer exists');
-        return;
-      }
-
       const task = tasks.find(t => t.id === taskId);
-      if (!task) {
-        setError('Task not found in local state');
-        return;
-      }
+      if (!task) return;
 
       const subTask = task.subTasks.find(st => st.id === subTaskId);
-      if (!subTask) {
-        setError('Subtask not found');
-        return;
-      }
+      if (!subTask) return;
 
       await updateSubtaskStatus(taskId, subTaskId, !subTask.completed);
 
@@ -140,11 +126,7 @@ export function Dashboard() {
       }));
     } catch (err) {
       console.error('Error toggling subtask:', err);
-      if (err instanceof Error) {
-        setError(`Failed to update subtask: ${err.message}`);
-      } else {
-        setError('Failed to update subtask');
-      }
+      setError('Failed to update subtask');
     }
   };
 
