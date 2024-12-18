@@ -75,26 +75,26 @@ export function Dashboard() {
     if (!currentUser) return;
 
     try {
-      const taskId = await createTask(currentUser.uid, {
+      const newTask: Omit<Task, 'id'> = {
         userId: currentUser.uid,
         title,
         description,
-        subTasks,
-        completed: false,
-        createdAt: new Date()
-      });
-
-      const newTask: Task = {
-        id: taskId,
-        userId: currentUser.uid,
-        title,
-        description,
-        subTasks,
+        subTasks: subTasks.map(st => ({
+          id: st.id,
+          title: st.title,
+          estimatedTime: st.estimatedTime,
+          completed: false
+        })),
         completed: false,
         createdAt: new Date()
       };
 
-      setTasks(prevTasks => [newTask, ...prevTasks]);
+      const taskId = await createTask(currentUser.uid, newTask);
+
+      setTasks(prevTasks => [{
+        ...newTask,
+        id: taskId
+      }, ...prevTasks]);
     } catch (err) {
       console.error('Error creating task:', err);
       setError('Failed to create task');
