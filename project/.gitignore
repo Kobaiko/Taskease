@@ -1,0 +1,27 @@
+# Node modules
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Environment variables
+.env
+
+# Logs
+logs
+*.log
+npm-debug.log*
+.env
+# Yarn integrity file
+.yarn-integrity
+
+# IDE specific files
+.idea/
+.vscode/
+
+# MacOS specific files
+.DS_Store
+
+# Other files to ignore
+*.tsbuildinfo
