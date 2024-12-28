@@ -11,6 +11,7 @@ export function Pricing() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleSelectPlan = async (variantId: string) => {
     if (!currentUser) {
@@ -20,11 +21,14 @@ export function Pricing() {
 
     try {
       setError('');
+      setLoading(true);
       const checkoutUrl = await createCheckout(variantId, currentUser.email!);
       window.location.href = checkoutUrl;
     } catch (error) {
       console.error('Error creating checkout:', error);
       setError(error instanceof Error ? error.message : 'Failed to create checkout');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -58,12 +62,14 @@ export function Pricing() {
         <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto">
           <PricingCard
             {...PLANS.monthly}
-            onSelect={() => handleSelectPlan(PLANS.monthly.variantId)}
+            onSelect={() => !loading && handleSelectPlan(PLANS.monthly.variantId)}
+            disabled={loading}
           />
           <PricingCard
             {...PLANS.yearly}
             popular
-            onSelect={() => handleSelectPlan(PLANS.yearly.variantId)}
+            onSelect={() => !loading && handleSelectPlan(PLANS.yearly.variantId)}
+            disabled={loading}
           />
         </div>
 

@@ -1,11 +1,18 @@
 import type { Subscription } from '../types/subscription';
 
 const API_KEY = import.meta.env.VITE_LEMONSQUEEZY_API_KEY;
+const STORE_ID = import.meta.env.VITE_LEMONSQUEEZY_STORE_ID;
 const API_URL = 'https://api.lemonsqueezy.com/v1';
 
 export async function createCheckout(variantId: string, email: string): Promise<string> {
-  if (!API_KEY) {
+  if (!API_KEY || API_KEY === 'undefined') {
+    console.error('Lemonsqueezy API key is not configured');
     throw new Error('Lemonsqueezy API key is not configured');
+  }
+
+  if (!STORE_ID || STORE_ID === 'undefined') {
+    console.error('Lemonsqueezy store ID is not configured');
+    throw new Error('Lemonsqueezy store ID is not configured');
   }
 
   try {
@@ -20,6 +27,7 @@ export async function createCheckout(variantId: string, email: string): Promise<
         data: {
           type: 'checkouts',
           attributes: {
+            store_id: STORE_ID,
             product_options: {
               enabled_variants: [variantId],
               redirect_url: `${window.location.origin}/dashboard`,
@@ -40,6 +48,7 @@ export async function createCheckout(variantId: string, email: string): Promise<
 
     if (!response.ok) {
       const error = await response.json();
+      console.error('Lemonsqueezy API error:', error);
       throw new Error(error.message || 'Failed to create checkout');
     }
 
@@ -47,6 +56,9 @@ export async function createCheckout(variantId: string, email: string): Promise<
     return data.data.attributes.url;
   } catch (error) {
     console.error('Checkout creation error:', error);
+    if (error instanceof Error) {
+      throw error;
+    }
     throw new Error('Unable to create checkout session. Please try again later.');
   }
 }
