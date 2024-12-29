@@ -4,18 +4,26 @@ const API_KEY = import.meta.env.VITE_LEMONSQUEEZY_API_KEY;
 const STORE_ID = import.meta.env.VITE_LEMONSQUEEZY_STORE_ID;
 const API_URL = 'https://api.lemonsqueezy.com/v1';
 
-export async function createCheckout(variantId: string, email: string): Promise<string> {
+function validateConfig() {
+  const errors = [];
+  
   if (!API_KEY || API_KEY === 'undefined') {
-    console.error('Lemonsqueezy API key is not configured');
-    throw new Error('Lemonsqueezy API key is not configured');
+    errors.push('Lemonsqueezy API key is not configured');
   }
-
+  
   if (!STORE_ID || STORE_ID === 'undefined') {
-    console.error('Lemonsqueezy store ID is not configured');
-    throw new Error('Lemonsqueezy store ID is not configured');
+    errors.push('Lemonsqueezy store ID is not configured');
   }
 
+  if (errors.length > 0) {
+    throw new Error(errors.join(', '));
+  }
+}
+
+export async function createCheckout(variantId: string, email: string): Promise<string> {
   try {
+    validateConfig();
+
     const response = await fetch(`${API_URL}/checkouts`, {
       method: 'POST',
       headers: {
