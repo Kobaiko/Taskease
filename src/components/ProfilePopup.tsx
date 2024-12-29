@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { X, User, Settings, LogOut, Mail, Lock, AlertCircle, Shield, Trash2, CreditCard } from 'lucide-react';
+import { X, User, Settings, LogOut, Mail, Lock, AlertCircle, Shield, Trash2, CreditCard, Star } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { useSubscription } from '../hooks/useSubscription';
 import { Logo } from './Logo';
 import { ConfirmDialog } from './ConfirmDialog';
 import { PhotoUpload } from './PhotoUpload';
 import { updateUserProfile, updateUserEmail, updateUserPassword, deleteUserAccount } from '../services/userService';
 import { isUserAdmin } from '../services/adminService';
+import { useSubscription } from '../hooks/useSubscription';
 
 interface ProfilePopupProps {
   isOpen: boolean;
@@ -28,7 +28,7 @@ export function ProfilePopup({ isOpen, onClose }: ProfilePopupProps) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [showDeletePasswordInput, setShowDeletePasswordInput] = useState(false);
-
+  
   const { currentUser, logout, reauthenticate } = useAuth();
   const { subscriptionData } = useSubscription(currentUser?.uid);
   const navigate = useNavigate();
@@ -54,16 +54,21 @@ export function ProfilePopup({ isOpen, onClose }: ProfilePopupProps) {
     }
   };
 
-  const handleUpdateProfile = async () => {
+  const handleUpdateProfile = async (file?: File) => {
     if (!currentUser) return;
     
     try {
       setLoading(true);
       setError('');
       
+      let photoURL = currentUser.photoURL;
+      if (file) {
+        // Handle photo upload if needed
+      }
+
       await updateUserProfile({
         displayName,
-        photoURL: currentUser.photoURL
+        photoURL
       });
 
       setSuccess('Profile updated successfully');
@@ -167,7 +172,15 @@ export function ProfilePopup({ isOpen, onClose }: ProfilePopupProps) {
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
           <div className="p-6">
             <div className="flex justify-between items-center mb-6">
-              <Logo size="sm" />
+              <div className="flex items-center gap-2">
+                <Logo size="sm" />
+                {subscriptionData?.isSubscribed && (
+                  <div className="flex items-center gap-1 text-yellow-500">
+                    <Star className="w-4 h-4 fill-current" />
+                    <span className="text-xs font-medium">Premium</span>
+                  </div>
+                )}
+              </div>
               <button
                 onClick={onClose}
                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
@@ -189,58 +202,18 @@ export function ProfilePopup({ isOpen, onClose }: ProfilePopupProps) {
               </div>
             )}
 
+            <div className="flex flex-col items-center mb-8">
+              <PhotoUpload className="mb-4" />
+              <input
+                type="text"
+                placeholder={currentUser.displayName || 'Enter your name'}
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                className="w-full max-w-xs px-4 py-2 text-center bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:text-white"
+              />
+            </div>
+
             <div className="space-y-8">
-              <div className="flex flex-col items-center">
-                <PhotoUpload className="mb-4" />
-                <div className="w-full max-w-xs space-y-2">
-                  <input
-                    type="text"
-                    placeholder={currentUser.displayName || 'Enter your name'}
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    className="w-full px-4 py-2 text-center bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:text-white"
-                  />
-                  <button
-                    onClick={handleUpdateProfile}
-                    disabled={loading || !displayName || displayName === currentUser.displayName}
-                    className="w-full py-2 px-4 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Save Name
-                  </button>
-                </div>
-              </div>
-
-              {isAdmin && (
-                <div className="flex justify-center">
-                  <Link
-                    to="/admin"
-                    className="flex items-center gap-2 px-4 py-2 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg font-medium"
-                    onClick={onClose}
-                  >
-                    <Shield className="w-5 h-5" />
-                    Admin Dashboard
-                  </Link>
-                </div>
-              )}
-
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Subscription</h3>
-                <button
-                  onClick={() => {
-                    onClose();
-                    if (subscriptionData?.subscriptionId) {
-                      window.location.href = 'https://taskease.lemonsqueezy.com/billing';
-                    } else {
-                      navigate('/pricing');
-                    }
-                  }}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg"
-                >
-                  <CreditCard className="w-5 h-5" />
-                  {subscriptionData?.subscriptionId ? 'Manage Subscription' : 'Subscribe Now'}
-                </button>
-              </div>
-
               <div>
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Update Email</h3>
                 <form onSubmit={handleUpdateEmail} className="space-y-4">
@@ -316,6 +289,37 @@ export function ProfilePopup({ isOpen, onClose }: ProfilePopupProps) {
                   </button>
                 </form>
               </div>
+
+              <div>
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Subscription</h3>
+                <button
+                  onClick={() => {
+                    if (subscriptionData?.isSubscribed) {
+                      window.open('https://taskease.lemonsqueezy.com/billing', '_blank');
+                    } else {
+                      navigate('/pricing');
+                    }
+                    onClose();
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg"
+                >
+                  <CreditCard className="w-5 h-5" />
+                  {subscriptionData?.isSubscribed ? 'Manage Subscription' : 'Subscribe Now'}
+                </button>
+              </div>
+
+              {isAdmin && (
+                <div className="flex justify-center">
+                  <Link
+                    to="/admin"
+                    className="flex items-center gap-2 px-4 py-2 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg font-medium"
+                    onClick={onClose}
+                  >
+                    <Shield className="w-5 h-5" />
+                    Admin Dashboard
+                  </Link>
+                </div>
+              )}
 
               <div className="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
                 <button

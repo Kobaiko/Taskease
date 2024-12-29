@@ -1,30 +1,10 @@
-import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, collection, Timestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import type { Subscription, UserSubscriptionData } from '../types/subscription';
 
 const SUBSCRIPTIONS_COLLECTION = 'subscriptions';
 const USER_SUBSCRIPTIONS_COLLECTION = 'user_subscriptions';
-
-export async function createSubscription(userId: string, planId: string): Promise<void> {
-  const subscription: Subscription = {
-    id: crypto.randomUUID(),
-    userId,
-    planId,
-    status: 'trial',
-    currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-    cancelAtPeriodEnd: false
-  };
-
-  await setDoc(doc(db, SUBSCRIPTIONS_COLLECTION, subscription.id), subscription);
-  
-  const userData: UserSubscriptionData = {
-    subscriptionId: subscription.id,
-    trialEndsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days trial
-    creditsUsed: 0
-  };
-
-  await setDoc(doc(db, USER_SUBSCRIPTIONS_COLLECTION, userId), userData);
-}
+const CREDITS_COLLECTION = 'credits';
 
 export async function getUserSubscriptionData(userId: string): Promise<UserSubscriptionData | null> {
   try {
@@ -32,13 +12,7 @@ export async function getUserSubscriptionData(userId: string): Promise<UserSubsc
     const docSnap = await getDoc(docRef);
     
     if (!docSnap.exists()) {
-      // Initialize subscription data for new users
-      const initialData: UserSubscriptionData = {
-        creditsUsed: 0,
-        trialEndsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) // 3 days trial
-      };
-      await setDoc(docRef, initialData);
-      return initialData;
+      return null;
     }
     
     return docSnap.data() as UserSubscriptionData;
@@ -48,10 +22,67 @@ export async function getUserSubscriptionData(userId: string): Promise<UserSubsc
   }
 }
 
-export async function updateSubscriptionStatus(
+export async function handleSubscriptionSuccess(
+  userId: string,
   subscriptionId: string,
-  status: Subscription['status']
+  planId: string
 ): Promise<void> {
-  const docRef = doc(db, SUBSCRIPTIONS_COLLECTION, subscriptionId);
-  await updateDoc(docRef, { status });
+  const batch = db.batch();
+
+  // Update subscription status
+  const subscriptionRef = doc(db, SUBSCRIPTIONS_COLLECTION, subscriptionId);
+  batch.set(subscriptionRef, {
+    id: subscriptionId,
+    userId,
+    planId,
+    status: 'active',
+    currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+    cancelAtPeriodEnd: false,
+    createdAt: Timestamp.now()
+  });
+
+  // Update user subscription data
+  const userSubRef = doc(db, USER_SUBSCRIPTIONS_COLLECTION, userId);
+  batch.set(userSubRef, {
+    subscriptionId,
+    creditsUsed: 0,
+    isSubscribed: true,
+    updatedAt: Timestamp.now()
+  });
+
+  // Set credits to 150
+  const creditsRef = doc(db, CREDITS_COLLECTION, userId);
+  batch.set(creditsRef, {
+    userId,
+    credits: 150,
+    lastUpdated: Timestamp.now()
+  });
+
+  await batch.commit();
+}
+
+export async function cancelSubscription(userId: string): Promise<void> {
+  const userSubRef = doc(db, USER_SUBSCRIPTIONS_COLLECTION, userId);
+  const userSubDoc = await getDoc(userSubRef);
+
+  if (!userSubDoc.exists()) {
+    throw new Error('No subscription found');
+  }
+
+  const { subscriptionId } = userSubDoc.data();
+  if (!subscriptionId) {
+    throw new Error('No active subscription found');
+  }
+
+  const subscriptionRef = doc(db, SUBSCRIPTIONS_COLLECTION, subscriptionId);
+  await updateDoc(subscriptionRef, {
+    status: 'canceled',
+    cancelAtPeriodEnd: true,
+    updatedAt: Timestamp.now()
+  });
+
+  await updateDoc(userSubRef, {
+    isSubscribed: false,
+    updatedAt: Timestamp.now()
+  });
 }

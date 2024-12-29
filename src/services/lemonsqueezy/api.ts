@@ -12,24 +12,53 @@ export async function createCheckout(
       import.meta.env.VITE_LEMONSQUEEZY_STORE_ID
     );
 
-    const storeSlug = import.meta.env.VITE_LEMONSQUEEZY_STORE_SLUG;
-    if (!storeSlug) {
-      throw new Error('Missing Lemon Squeezy store slug');
+    const response = await fetch(`${API_URL}/checkouts`, {
+      method: 'POST',
+      headers: {
+        ...API_HEADERS,
+        ...getAuthHeader(apiKey)
+      },
+      body: JSON.stringify({
+        data: {
+          type: 'checkouts',
+          attributes: {
+            checkout_data: {
+              email,
+              custom: {
+                user_email: email
+              }
+            },
+            checkout_options: {
+              dark: document.documentElement.classList.contains('dark'),
+              success_url: `${window.location.origin}/dashboard?subscription=success`,
+              cancel_url: `${window.location.origin}/pricing?subscription=canceled`
+            }
+          },
+          relationships: {
+            store: {
+              data: {
+                type: 'stores',
+                id: storeId
+              }
+            },
+            variant: {
+              data: {
+                type: 'variants',
+                id: variantId
+              }
+            }
+          }
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to create checkout');
     }
 
-    // Build checkout URL with parameters
-    const checkoutUrl = new URL(`https://${storeSlug}.lemonsqueezy.com/checkout/buy/${variantId}`);
-    
-    // Add required parameters
-    checkoutUrl.searchParams.append('checkout[email]', email);
-    checkoutUrl.searchParams.append('checkout[custom][user_email]', email);
-    checkoutUrl.searchParams.append('dark', document.documentElement.classList.contains('dark').toString());
-    checkoutUrl.searchParams.append('embed', '1');
-    checkoutUrl.searchParams.append('media', '0');
-    checkoutUrl.searchParams.append('success_url', `${window.location.origin}/dashboard?success=true`);
-    checkoutUrl.searchParams.append('cancel_url', `${window.location.origin}/pricing?canceled=true`);
-
-    return checkoutUrl.toString();
+    const data: CheckoutResponse = await response.json();
+    return validateCheckoutResponse(data);
   } catch (error) {
     console.error('Lemonsqueezy API error:', error);
     throw error instanceof Error 
