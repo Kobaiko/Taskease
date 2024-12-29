@@ -5,24 +5,58 @@ const STORE_ID = import.meta.env.VITE_LEMONSQUEEZY_STORE_ID;
 const API_URL = 'https://api.lemonsqueezy.com/v1';
 
 function validateConfig() {
-  const errors = [];
-  
-  if (!API_KEY || API_KEY === 'undefined') {
-    errors.push('Lemonsqueezy API key is not configured');
-  }
-  
-  if (!STORE_ID || STORE_ID === 'undefined') {
-    errors.push('Lemonsqueezy store ID is not configured');
-  }
+  console.log('Environment check:', {
+    hasApiKey: !!API_KEY,
+    hasStoreId: !!STORE_ID,
+    apiKeyType: typeof API_KEY,
+    storeIdType: typeof STORE_ID
+  });
 
-  if (errors.length > 0) {
-    throw new Error(errors.join(', '));
-  }
+  if (!API_KEY) throw new Error('Lemonsqueezy API key is not configured');
+  if (!STORE_ID) throw new Error('Lemonsqueezy store ID is not configured');
 }
 
 export async function createCheckout(variantId: string, email: string): Promise<string> {
   try {
     validateConfig();
+
+    const checkoutData = {
+      data: {
+        type: 'checkouts',
+        attributes: {
+          store_id: parseInt(STORE_ID),
+          variant_id: parseInt(variantId),
+          custom_price: null,
+          product_options: {
+            name: null,
+            description: null,
+            media: null,
+            redirect_url: `${window.location.origin}/dashboard`,
+            receipt_thank_you_note: 'Thank you for subscribing to TaskEase!',
+            receipt_link_url: `${window.location.origin}/dashboard`,
+            receipt_button_text: 'Go to Dashboard',
+            enabled_variants: null
+          },
+          checkout_options: {
+            dark: document.documentElement.classList.contains('dark'),
+            custom_fields: null
+          },
+          checkout_data: {
+            email,
+            custom: {
+              user_id: email
+            }
+          },
+          expires_at: null
+        }
+      }
+    };
+
+    console.log('Creating checkout with data:', {
+      url: `${API_URL}/checkouts`,
+      variantId,
+      storeId: STORE_ID
+    });
 
     const response = await fetch(`${API_URL}/checkouts`, {
       method: 'POST',
@@ -31,27 +65,7 @@ export async function createCheckout(variantId: string, email: string): Promise<
         'Accept': 'application/json',
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        data: {
-          type: 'checkouts',
-          attributes: {
-            store_id: STORE_ID,
-            product_options: {
-              enabled_variants: [variantId],
-              redirect_url: `${window.location.origin}/dashboard`,
-              receipt_link_url: `${window.location.origin}/dashboard`,
-              receipt_button_text: 'Go to Dashboard',
-              receipt_thank_you_note: 'Thank you for subscribing to TaskEase!'
-            },
-            checkout_data: {
-              email,
-              custom: {
-                user_id: email
-              }
-            }
-          }
-        }
-      })
+      body: JSON.stringify(checkoutData)
     });
 
     if (!response.ok) {
@@ -64,9 +78,6 @@ export async function createCheckout(variantId: string, email: string): Promise<
     return data.data.attributes.url;
   } catch (error) {
     console.error('Checkout creation error:', error);
-    if (error instanceof Error) {
-      throw error;
-    }
-    throw new Error('Unable to create checkout session. Please try again later.');
+    throw error;
   }
 }
