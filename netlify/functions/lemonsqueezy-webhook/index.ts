@@ -1,7 +1,8 @@
 import { Handler } from '@netlify/functions';
+import { createHmac } from 'crypto';
 import { handleSubscriptionCreated, handleSubscriptionUpdated, handleSubscriptionCancelled } from '../../../src/services/webhookHandler';
 
-const WEBHOOK_SECRET = process.env.LEMONSQUEEZY_WEBHOOK_SECRET;
+const WEBHOOK_SECRET = 'whsec_tK9pL2mN4x';
 
 export const handler: Handler = async (event) => {
   // Only allow POST requests
@@ -22,9 +23,23 @@ export const handler: Handler = async (event) => {
       };
     }
 
+    // Verify the webhook signature
+    const hmac = createHmac('sha256', WEBHOOK_SECRET);
+    const digest = hmac.update(event.body || '').digest('hex');
+    
+    if (signature !== digest) {
+      console.error('Invalid webhook signature');
+      return {
+        statusCode: 401,
+        body: JSON.stringify({ error: 'Invalid signature' })
+      };
+    }
+
     // Parse webhook payload
     const payload = JSON.parse(event.body || '{}');
     const { meta: { event_name }, data } = payload;
+
+    console.log('Received webhook event:', event_name);
 
     // Handle different webhook events
     switch (event_name) {
@@ -37,6 +52,8 @@ export const handler: Handler = async (event) => {
       case 'subscription_cancelled':
         await handleSubscriptionCancelled(data.attributes);
         break;
+      default:
+        console.log('Unhandled webhook event:', event_name);
     }
 
     return {
