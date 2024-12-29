@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { AlertCircle, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { PricingCard } from '../components/PricingCard';
 import { Logo } from '../components/Logo';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 import { PLANS } from '../config/plans';
-import { createCheckout } from '../services/lemonsqueezyService';
+import { createCheckout } from '../services/lemonsqueezy/api';
+import { openCheckout } from '../lib/lemonsqueezy';
 
 export function Pricing() {
   const { currentUser } = useAuth();
@@ -14,19 +16,23 @@ export function Pricing() {
   const [loading, setLoading] = useState(false);
 
   const handleSelectPlan = async (variantId: string) => {
-    if (!currentUser) {
-      navigate('/register');
+    if (!currentUser?.email) {
+      navigate('/login', { state: { from: '/pricing' } });
       return;
     }
 
     try {
       setError('');
       setLoading(true);
-      const checkoutUrl = await createCheckout(variantId, currentUser.email!);
-      window.location.href = checkoutUrl;
+      const checkoutUrl = await createCheckout(variantId, currentUser.email);
+      await openCheckout(checkoutUrl);
     } catch (error) {
       console.error('Error creating checkout:', error);
-      setError(error instanceof Error ? error.message : 'Failed to create checkout');
+      setError(
+        error instanceof Error 
+          ? error.message 
+          : 'Failed to create checkout. Please try again.'
+      );
     } finally {
       setLoading(false);
     }
@@ -34,24 +40,25 @@ export function Pricing() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="text-center mb-12">
-          <Logo size="lg" className="mx-auto mb-6" />
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
-            Simple, transparent pricing
-          </h1>
-          <p className="text-xl text-gray-600 dark:text-gray-400">
-            Choose a plan that works for you
-          </p>
-          <button
-            onClick={() => navigate('/')}
-            className="mt-4 inline-flex items-center gap-2 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300"
-          >
-            <ArrowLeft size={20} />
-            <span>Go back to my Dashboard</span>
-          </button>
+      <header className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center gap-4">
+              <Link
+                to="/"
+                className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+              >
+                <ArrowLeft size={20} />
+                <span className="text-sm">Back to App</span>
+              </Link>
+              <div className="w-px h-6 bg-gray-200 dark:bg-gray-700" />
+              <Logo size="sm" />
+            </div>
+          </div>
         </div>
+      </header>
 
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         {error && (
           <div className="max-w-3xl mx-auto mb-8 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 flex items-center">
             <AlertCircle className="h-5 w-5 mr-2" />
@@ -59,25 +66,39 @@ export function Pricing() {
           </div>
         )}
 
-        <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto">
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
+            Choose Your Plan
+          </h1>
+          <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+            Get started with TaskEase today and transform the way you manage your tasks
+          </p>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
           <PricingCard
-            {...PLANS.monthly}
-            onSelect={() => !loading && handleSelectPlan(PLANS.monthly.variantId)}
-            disabled={loading}
+            name={PLANS.monthly.name}
+            price={PLANS.monthly.price}
+            interval={PLANS.monthly.interval}
+            features={PLANS.monthly.features}
+            onSelect={() => handleSelectPlan(PLANS.monthly.variantId)}
           />
           <PricingCard
-            {...PLANS.yearly}
+            name={PLANS.yearly.name}
+            price={PLANS.yearly.price}
+            interval={PLANS.yearly.interval}
+            features={PLANS.yearly.features}
+            onSelect={() => handleSelectPlan(PLANS.yearly.variantId)}
             popular
-            onSelect={() => !loading && handleSelectPlan(PLANS.yearly.variantId)}
-            disabled={loading}
           />
         </div>
 
-        <div className="mt-12 text-center text-sm text-gray-500 dark:text-gray-400">
-          By subscribing, you agree to our Terms of Service and Privacy Policy.<br />
-          You can cancel your subscription at any time.
-        </div>
-      </div>
+        {loading && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+            <LoadingSpinner size={40} className="text-purple-600" />
+          </div>
+        )}
+      </main>
     </div>
   );
 }
