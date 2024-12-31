@@ -9,7 +9,6 @@ const corsHeaders = {
 };
 
 export const handler: Handler = async (event) => {
-  // Handle preflight requests
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 204,
@@ -27,17 +26,7 @@ export const handler: Handler = async (event) => {
   }
 
   try {
-    let requestData;
-    try {
-      requestData = JSON.parse(event.body || '');
-    } catch (e) {
-      return {
-        statusCode: 400,
-        headers: corsHeaders,
-        body: JSON.stringify({ error: 'Invalid JSON in request body' })
-      };
-    }
-
+    const requestData = JSON.parse(event.body || '');
     const { variantId, email } = requestData;
     
     if (!variantId || !email) {
@@ -55,6 +44,9 @@ export const handler: Handler = async (event) => {
       throw new Error('Missing Lemon Squeezy configuration');
     }
 
+    // Construct the base URL for success/cancel redirects
+    const baseUrl = process.env.URL || 'http://localhost:8888';
+
     const response = await fetch(`${API_URL}/checkouts`, {
       method: 'POST',
       headers: {
@@ -66,11 +58,20 @@ export const handler: Handler = async (event) => {
         data: {
           type: 'checkouts',
           attributes: {
-            checkout_data: { email },
-            checkout_options: {
-              dark: true,
-              success_url: `${process.env.URL || 'http://localhost:8888'}/dashboard?success=true`,
-              cancel_url: `${process.env.URL || 'http://localhost:8888'}/pricing`
+            custom_price: null,
+            product_options: {
+              enabled_variants: [variantId],
+              redirect_url: `${baseUrl}/dashboard?success=true`,
+              receipt_link_url: `${baseUrl}/dashboard?receipt=true`,
+              receipt_button_text: 'Return to Dashboard',
+              enabled_payment_methods: ['card'],
+              dark: true
+            },
+            checkout_data: {
+              email,
+              custom: {
+                user_email: email
+              }
             }
           },
           relationships: {
@@ -85,27 +86,24 @@ export const handler: Handler = async (event) => {
       })
     });
 
-    const responseText = await response.text();
-    let responseData;
-    
-    try {
-      responseData = JSON.parse(responseText);
-    } catch (e) {
-      throw new Error('Invalid JSON response from Lemon Squeezy: ' + responseText);
-    }
-
     if (!response.ok) {
-      throw new Error(responseData.errors?.[0]?.detail || 'Failed to create checkout');
+      const errorData = await response.json();
+      throw new Error(
+        errorData.errors?.[0]?.detail || 'Failed to create checkout'
+      );
     }
 
-    if (!responseData?.data?.attributes?.url) {
+    const data = await response.json();
+    const checkoutUrl = data?.data?.attributes?.url;
+
+    if (!checkoutUrl) {
       throw new Error('Invalid response: Missing checkout URL');
     }
 
     return {
       statusCode: 200,
       headers: corsHeaders,
-      body: JSON.stringify({ url: responseData.data.attributes.url })
+      body: JSON.stringify({ url: checkoutUrl })
     };
 
   } catch (error) {
