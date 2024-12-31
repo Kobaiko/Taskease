@@ -44,7 +44,6 @@ export const handler: Handler = async (event) => {
       throw new Error('Missing Lemon Squeezy configuration');
     }
 
-    // Construct the base URL for success/cancel redirects
     const baseUrl = process.env.URL || 'http://localhost:8888';
 
     const response = await fetch(`${API_URL}/checkouts`, {
@@ -59,12 +58,13 @@ export const handler: Handler = async (event) => {
           type: 'checkouts',
           attributes: {
             custom_price: null,
-            enabled_variants: [variantId],
-            redirect_url: `${baseUrl}/dashboard?success=true`,
-            receipt_link_url: `${baseUrl}/dashboard?receipt=true`,
-            receipt_button_text: 'Return to Dashboard',
-            enabled_payment_methods: ['card'],
-            dark: true,
+            product_options: {
+              redirect_url: `${baseUrl}/dashboard?success=true`,
+              receipt_link_url: `${baseUrl}/dashboard?receipt=true`,
+              receipt_button_text: 'Return to Dashboard',
+              enabled_payment_methods: ['card'],
+              dark: true
+            },
             checkout_data: {
               email,
               custom: {
