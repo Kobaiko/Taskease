@@ -1,6 +1,6 @@
 export const VARIANT_IDS = {
-  monthly: '417921',  // Monthly plan variant ID
-  yearly: '417923'    // Yearly plan variant ID
+  monthly: '640343',  // Monthly plan variant ID
+  yearly: '640345'    // Yearly plan variant ID
 } as const;
 
 export const PLANS = {

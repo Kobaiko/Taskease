@@ -3,8 +3,9 @@ import { API_URL } from '../../../src/services/lemonsqueezy/config';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Max-Age': '86400'
 };
 
 export const handler: Handler = async (event) => {
@@ -31,25 +32,22 @@ export const handler: Handler = async (event) => {
     }
 
     const { variantId, email } = JSON.parse(event.body);
-    const apiKey = process.env.LEMONSQUEEZY_API_KEY;
-    const storeId = process.env.LEMONSQUEEZY_STORE_ID;
+    const apiKey = process.env.VITE_LEMONSQUEEZY_API_KEY;
+    const storeId = process.env.VITE_LEMONSQUEEZY_STORE_ID;
 
     if (!apiKey || !storeId) {
-      throw new Error('Missing Lemonsqueezy configuration');
+      throw new Error('Missing required configuration');
     }
 
     if (!variantId || !email) {
       return {
         statusCode: 400,
         headers: corsHeaders,
-        body: JSON.stringify({ 
-          error: 'Missing required fields',
-          details: 'Both variantId and email are required'
-        })
+        body: JSON.stringify({ error: 'Missing required fields' })
       };
     }
 
-    const checkoutResponse = await fetch(`${API_URL}/v1/checkouts`, {
+    const response = await fetch(`${API_URL}/checkouts`, {
       method: 'POST',
       headers: {
         'Accept': 'application/vnd.api+json',
@@ -60,10 +58,7 @@ export const handler: Handler = async (event) => {
         data: {
           type: 'checkouts',
           attributes: {
-            checkout_data: {
-              email,
-              custom: { user_email: email }
-            },
+            checkout_data: { email },
             checkout_options: {
               dark: true,
               success_url: `${process.env.URL || 'http://localhost:8888'}/dashboard?success=true`,
@@ -82,11 +77,10 @@ export const handler: Handler = async (event) => {
       })
     });
 
-    const checkoutData = await checkoutResponse.json();
+    const data = await response.json();
 
-    if (!checkoutResponse.ok) {
-      console.error('Lemonsqueezy API error:', checkoutData);
-      throw new Error(checkoutData.errors?.[0]?.detail || 'Failed to create checkout');
+    if (!response.ok) {
+      throw new Error(data.errors?.[0]?.detail || 'Failed to create checkout');
     }
 
     return {
@@ -95,20 +89,16 @@ export const handler: Handler = async (event) => {
         ...corsHeaders,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ url: checkoutData.data.attributes.url })
+      body: JSON.stringify({ url: data.data.attributes.url })
     };
   } catch (error) {
-    console.error('Error creating checkout:', error);
-
+    console.error('Checkout error:', error);
     return {
       statusCode: 500,
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
+      headers: corsHeaders,
+      body: JSON.stringify({ 
         error: 'Failed to create checkout',
-        details: error instanceof Error ? error.message : 'Unknown error occurred'
+        details: error instanceof Error ? error.message : 'Unknown error'
       })
     };
   }
