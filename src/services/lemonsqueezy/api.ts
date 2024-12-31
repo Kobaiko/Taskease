@@ -12,11 +12,11 @@ export async function createCheckout(
       import.meta.env.VITE_LEMONSQUEEZY_STORE_ID
     );
 
-    const response = await fetch(`${API_URL}/checkouts`, {
+    const response = await fetch(`${API_URL}/v1/checkouts`, {
       method: 'POST',
       headers: {
         ...API_HEADERS,
-        ...getAuthHeader(apiKey)
+        Authorization: `Bearer ${apiKey}`
       },
       body: JSON.stringify({
         data: {
@@ -28,10 +28,13 @@ export async function createCheckout(
                 user_email: email
               }
             },
+            product_options: {
+              redirect_url: `${window.location.origin}/dashboard`,
+              receipt_link_url: `${window.location.origin}/dashboard`,
+              receipt_button_text: 'Return to Dashboard'
+            },
             checkout_options: {
-              dark: document.documentElement.classList.contains('dark'),
-              success_url: `${window.location.origin}/dashboard?subscription=success`,
-              cancel_url: `${window.location.origin}/pricing?subscription=canceled`
+              dark: document.documentElement.classList.contains('dark')
             }
           },
           relationships: {
@@ -53,11 +56,12 @@ export async function createCheckout(
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to create checkout');
+      const errorData = await response.json();
+      console.error('Lemon Squeezy API Error:', errorData);
+      throw new Error(errorData.errors?.[0]?.detail || 'Failed to create checkout');
     }
 
-    const data: CheckoutResponse = await response.json();
+    const data = await response.json();
     return validateCheckoutResponse(data);
   } catch (error) {
     console.error('Lemonsqueezy API error:', error);

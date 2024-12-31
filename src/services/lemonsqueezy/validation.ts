@@ -1,10 +1,10 @@
 export function validateEnvironment(apiKey?: string, storeId?: string) {
   if (!apiKey) {
-    throw new Error('Missing Lemon Squeezy API key. Please check your environment configuration.');
+    throw new Error('Missing Lemon Squeezy API key');
   }
 
   if (!storeId) {
-    throw new Error('Missing Lemon Squeezy store ID. Please check your environment configuration.');
+    throw new Error('Missing Lemon Squeezy store ID');
   }
 
   return {
@@ -16,7 +16,7 @@ export function validateEnvironment(apiKey?: string, storeId?: string) {
 export function validateCheckoutResponse(data: any): string {
   if (!data?.data?.attributes?.url) {
     console.error('Invalid checkout response:', data);
-    throw new Error('Invalid response from Lemon Squeezy. Please try again.');
+    throw new Error('Invalid checkout response from Lemon Squeezy');
   }
 
   return data.data.attributes.url;

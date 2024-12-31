@@ -7,7 +7,6 @@ import { Logo } from '../components/Logo';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { PLANS } from '../config/plans';
 import { createCheckout } from '../services/lemonsqueezy/api';
-import { openCheckout } from '../lib/lemonsqueezy';
 
 export function Pricing() {
   const { currentUser } = useAuth();
@@ -25,7 +24,10 @@ export function Pricing() {
       setError('');
       setLoading(true);
       const checkoutUrl = await createCheckout(variantId, currentUser.email);
-      await openCheckout(checkoutUrl);
+      if (!checkoutUrl) {
+        throw new Error('Failed to create checkout');
+      }
+      window.location.href = checkoutUrl;
     } catch (error) {
       console.error('Error creating checkout:', error);
       setError(
@@ -38,9 +40,17 @@ export function Pricing() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <LoadingSpinner size={40} className="text-purple-600 dark:text-purple-400" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <header className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
+      <header className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
@@ -60,7 +70,7 @@ export function Pricing() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         {error && (
-          <div className="max-w-3xl mx-auto mb-8 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 flex items-center">
+          <div className="mb-8 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 flex items-center">
             <AlertCircle className="h-5 w-5 mr-2" />
             <p className="text-sm">{error}</p>
           </div>
@@ -70,12 +80,12 @@ export function Pricing() {
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
             Choose Your Plan
           </h1>
-          <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-            Get started with TaskEase today and transform the way you manage your tasks
+          <p className="text-xl text-gray-600 dark:text-gray-400">
+            Get started with TaskEase today and boost your productivity
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
           <PricingCard
             name={PLANS.monthly.name}
             price={PLANS.monthly.price}
@@ -92,12 +102,6 @@ export function Pricing() {
             popular
           />
         </div>
-
-        {loading && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-            <LoadingSpinner size={40} className="text-purple-600" />
-          </div>
-        )}
       </main>
     </div>
   );
