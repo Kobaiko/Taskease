@@ -16,7 +16,7 @@ Example: [{"title": "Research competitors", "estimatedTime": 45}]`;
       messages: [
         { 
           role: "system", 
-          content: "You are a task breakdown assistant. Provide detailed subtasks with realistic time estimates." 
+          content: "You are a task breakdown assistant. Always return valid JSON containing subtasks array." 
         },
         { 
           role: "user", 
@@ -40,7 +40,7 @@ Example: [{"title": "Research competitors", "estimatedTime": 45}]`;
     return result.subtasks.map(subtask => ({
       id: crypto.randomUUID(),
       title: subtask.title,
-      estimatedTime: Math.min(subtask.estimatedTime, 60),
+      estimatedTime: Math.min(Math.max(1, Number(subtask.estimatedTime)), 60),
       completed: false
     }));
   } catch (error) {

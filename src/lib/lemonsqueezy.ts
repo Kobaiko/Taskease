@@ -66,15 +66,10 @@ async function handleCheckoutSuccess(data: CheckoutSuccessData) {
 export async function openCheckout(checkoutUrl: string): Promise<void> {
   try {
     await initializeLemonSqueezy();
-    
-    if (!window.LemonSqueezy?.Url) {
-      throw new Error('Lemon Squeezy SDK not initialized properly');
-    }
-
-    window.LemonSqueezy.Url.Open(checkoutUrl);
+    window.LemonSqueezy?.Url.Open(checkoutUrl);
   } catch (error) {
     console.error('Error opening checkout:', error);
     // Fallback to direct URL if SDK fails
-    window.location.href = checkoutUrl;
+    window.open(checkoutUrl, '_blank');
   }
 }

@@ -3,9 +3,9 @@ import { API_URL } from '../../../src/services/lemonsqueezy/config';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Headers': 'Content-Type, Accept',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Max-Age': '86400'
+  'Content-Type': 'application/json'
 };
 
 export const handler: Handler = async (event) => {
@@ -27,24 +27,32 @@ export const handler: Handler = async (event) => {
   }
 
   try {
-    if (!event.body) {
-      throw new Error('Missing request body');
+    let requestData;
+    try {
+      requestData = JSON.parse(event.body || '');
+    } catch (e) {
+      return {
+        statusCode: 400,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: 'Invalid JSON in request body' })
+      };
     }
 
-    const { variantId, email } = JSON.parse(event.body);
-    const apiKey = process.env.VITE_LEMONSQUEEZY_API_KEY;
-    const storeId = process.env.VITE_LEMONSQUEEZY_STORE_ID;
-
-    if (!apiKey || !storeId) {
-      throw new Error('Missing required configuration');
-    }
-
+    const { variantId, email } = requestData;
+    
     if (!variantId || !email) {
       return {
         statusCode: 400,
         headers: corsHeaders,
         body: JSON.stringify({ error: 'Missing required fields' })
       };
+    }
+
+    const apiKey = process.env.VITE_LEMONSQUEEZY_API_KEY;
+    const storeId = process.env.VITE_LEMONSQUEEZY_STORE_ID;
+
+    if (!apiKey || !storeId) {
+      throw new Error('Missing Lemon Squeezy configuration');
     }
 
     const response = await fetch(`${API_URL}/checkouts`, {
@@ -77,28 +85,37 @@ export const handler: Handler = async (event) => {
       })
     });
 
-    const data = await response.json();
+    const responseText = await response.text();
+    let responseData;
+    
+    try {
+      responseData = JSON.parse(responseText);
+    } catch (e) {
+      throw new Error('Invalid JSON response from Lemon Squeezy: ' + responseText);
+    }
 
     if (!response.ok) {
-      throw new Error(data.errors?.[0]?.detail || 'Failed to create checkout');
+      throw new Error(responseData.errors?.[0]?.detail || 'Failed to create checkout');
+    }
+
+    if (!responseData?.data?.attributes?.url) {
+      throw new Error('Invalid response: Missing checkout URL');
     }
 
     return {
       statusCode: 200,
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ url: data.data.attributes.url })
+      headers: corsHeaders,
+      body: JSON.stringify({ url: responseData.data.attributes.url })
     };
+
   } catch (error) {
-    console.error('Checkout error:', error);
+    console.error('Checkout creation error:', error);
+    
     return {
       statusCode: 500,
       headers: corsHeaders,
       body: JSON.stringify({ 
-        error: 'Failed to create checkout',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Failed to create checkout'
       })
     };
   }

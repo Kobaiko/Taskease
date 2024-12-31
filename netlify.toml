@@ -6,10 +6,25 @@
 [[headers]]
   for = "/*"
   [headers.values]
-    Content-Security-Policy = "default-src 'self' https://*.lemonsqueezy.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.lemonsqueezy.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.lemonsqueezy.com https://api.lemonsqueezy.com;"
+    Content-Security-Policy = """
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' https://*.lemonsqueezy.com;
+      style-src 'self' 'unsafe-inline';
+      img-src 'self' data: https: blob:;
+      font-src 'self';
+      connect-src 'self' https://*.lemonsqueezy.com https://api.lemonsqueezy.com;
+      frame-src https://*.lemonsqueezy.com;
+      frame-ancestors 'none';
+      form-action 'self';
+      base-uri 'self';
+      """
     Access-Control-Allow-Origin = "*"
     Access-Control-Allow-Methods = "GET, POST, OPTIONS"
     Access-Control-Allow-Headers = "Content-Type"
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
 
 [[redirects]]
   from = "/api/*"

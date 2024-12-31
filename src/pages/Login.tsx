@@ -8,9 +8,8 @@ export function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn, resetPassword } = useAuth();
+  const { signIn } = useAuth();
   const navigate = useNavigate();
 
   async function handleSubmit(e: React.FormEvent) {
@@ -22,7 +21,7 @@ export function Login() {
       navigate('/');
     } catch (err) {
       console.error('Login error:', err);
-      setError('Failed to sign in');
+      setError(err instanceof Error ? err.message : 'Failed to sign in');
     } finally {
       setLoading(false);
     }
@@ -41,12 +40,6 @@ export function Login() {
           <div className="mb-6 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 flex items-center">
             <AlertCircle className="h-5 w-5 mr-2" />
             <p className="text-sm">{error}</p>
-          </div>
-        )}
-
-        {successMessage && (
-          <div className="mb-6 p-4 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 flex items-center">
-            <p className="text-sm">{successMessage}</p>
           </div>
         )}
 
@@ -76,29 +69,6 @@ export function Login() {
                 className="w-full px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:text-white"
                 required
               />
-              <button
-                type="button"
-                onClick={async () => {
-                  if (!email) {
-                    setError('Please enter your email address');
-                    return;
-                  }
-                  try {
-                    setError('');
-                    setLoading(true);
-                    await resetPassword(email);
-                    setSuccessMessage('Password reset email sent! Check your inbox.');
-                  } catch (err) {
-                    console.error('Password reset error:', err);
-                    setError('Failed to send password reset email');
-                  } finally {
-                    setLoading(false);
-                  }
-                }}
-                className="mt-1 text-sm text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300"
-              >
-                Forgot Password?
-              </button>
             </div>
 
             <button
