@@ -58,33 +58,16 @@ export const handler: Handler = async (event) => {
           type: 'checkouts',
           attributes: {
             custom_price: null,
-            product_options: [
-              {
-                name: 'redirect_url',
-                value: `${baseUrl}/dashboard?success=true`
-              },
-              {
-                name: 'receipt_link_url',
-                value: `${baseUrl}/dashboard?receipt=true`
-              },
-              {
-                name: 'receipt_button_text',
-                value: 'Return to Dashboard'
-              },
-              {
-                name: 'enabled_payment_methods',
-                value: ['card']
-              },
-              {
-                name: 'dark',
-                value: true
-              }
-            ],
             checkout_data: {
               email,
               custom: {
                 user_email: email
               }
+            },
+            checkout_options: {
+              dark: true,
+              success_url: `${baseUrl}/dashboard?success=true`,
+              cancel_url: `${baseUrl}/pricing`
             }
           },
           relationships: {
@@ -101,6 +84,7 @@ export const handler: Handler = async (event) => {
 
     if (!response.ok) {
       const errorData = await response.json();
+      console.error('Lemon Squeezy API error:', errorData);
       throw new Error(
         errorData.errors?.[0]?.detail || 'Failed to create checkout'
       );
