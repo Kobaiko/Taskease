@@ -1,19 +1,8 @@
-import OpenAI from 'openai';
+import { openai } from './openai';
+import { handleAPIError } from '../utils/error';
+import type { SubTask } from '../types';
 
-const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-
-if (!apiKey) {
-  throw new Error(
-    'OpenAI API key is missing. Please add VITE_OPENAI_API_KEY to your .env file.'
-  );
-}
-
-const openai = new OpenAI({
-  apiKey,
-  dangerouslyAllowBrowser: true
-});
-
-export async function generateSubtasks(title: string, description: string) {
+export async function generateSubtasks(title: string, description: string): Promise<SubTask[]> {
   try {
     const prompt = `Break down this task into smaller subtasks (max 60 minutes each):
 Title: ${title}
@@ -55,10 +44,6 @@ Example: [{"title": "Research competitors", "estimatedTime": 45}]`;
       completed: false
     }));
   } catch (error) {
-    console.error('Error generating subtasks:', error);
-    if (error instanceof Error) {
-      throw new Error(`Failed to generate subtasks: ${error.message}`);
-    }
-    throw new Error('Failed to generate subtasks. Please try again.');
+    throw handleAPIError(error);
   }
 }

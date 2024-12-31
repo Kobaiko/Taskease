@@ -5,8 +5,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { PricingCard } from '../components/PricingCard';
 import { Logo } from '../components/Logo';
 import { LoadingSpinner } from '../components/LoadingSpinner';
-import { PLANS } from '../config/plans';
 import { createCheckout } from '../services/lemonsqueezy/api';
+import { PLANS } from '../config/plans';
 
 export function Pricing() {
   const { currentUser } = useAuth();
@@ -23,11 +23,29 @@ export function Pricing() {
     try {
       setError('');
       setLoading(true);
-      const checkoutUrl = await createCheckout(variantId, currentUser.email);
-      if (!checkoutUrl) {
-        throw new Error('Failed to create checkout');
+
+      const response = await fetch('/.netlify/functions/create-checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          variantId,
+          email: currentUser.email
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create checkout');
       }
-      window.location.href = checkoutUrl;
+
+      if (!data.url) {
+        throw new Error('No checkout URL received');
+      }
+
+      window.location.href = data.url;
     } catch (error) {
       console.error('Error creating checkout:', error);
       setError(
