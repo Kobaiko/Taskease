@@ -46,6 +46,42 @@ export const handler: Handler = async (event) => {
 
     const baseUrl = process.env.URL || 'http://localhost:8888';
 
+    const checkoutData = {
+      data: {
+        type: 'checkouts',
+        attributes: {
+          checkout_data: {
+            email,
+            custom: {
+              user_email: email
+            }
+          },
+          checkout_options: {
+            dark: true,
+            success_url: `${baseUrl}/dashboard?success=true`,
+            cancel_url: `${baseUrl}/pricing`
+          },
+          product_options: {
+            enabled_variants: [variantId]
+          }
+        },
+        relationships: {
+          store: {
+            data: {
+              type: 'stores',
+              id: storeId
+            }
+          },
+          variant: {
+            data: {
+              type: 'variants',
+              id: variantId
+            }
+          }
+        }
+      }
+    };
+
     const response = await fetch(`${API_URL}/checkouts`, {
       method: 'POST',
       headers: {
@@ -53,33 +89,7 @@ export const handler: Handler = async (event) => {
         'Content-Type': 'application/vnd.api+json',
         'Authorization': `Bearer ${apiKey}`
       },
-      body: JSON.stringify({
-        data: {
-          type: 'checkouts',
-          attributes: {
-            custom_price: null,
-            checkout_data: {
-              email,
-              custom: {
-                user_email: email
-              }
-            },
-            checkout_options: {
-              dark: true,
-              success_url: `${baseUrl}/dashboard?success=true`,
-              cancel_url: `${baseUrl}/pricing`
-            }
-          },
-          relationships: {
-            store: {
-              data: { type: 'stores', id: storeId }
-            },
-            variant: {
-              data: { type: 'variants', id: variantId }
-            }
-          }
-        }
-      })
+      body: JSON.stringify(checkoutData)
     });
 
     if (!response.ok) {
