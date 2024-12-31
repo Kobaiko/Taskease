@@ -59,14 +59,12 @@ export const handler: Handler = async (event) => {
           type: 'checkouts',
           attributes: {
             custom_price: null,
-            product_options: {
-              enabled_variants: [variantId],
-              redirect_url: `${baseUrl}/dashboard?success=true`,
-              receipt_link_url: `${baseUrl}/dashboard?receipt=true`,
-              receipt_button_text: 'Return to Dashboard',
-              enabled_payment_methods: ['card'],
-              dark: true
-            },
+            enabled_variants: [variantId],
+            redirect_url: `${baseUrl}/dashboard?success=true`,
+            receipt_link_url: `${baseUrl}/dashboard?receipt=true`,
+            receipt_button_text: 'Return to Dashboard',
+            enabled_payment_methods: ['card'],
+            dark: true,
             checkout_data: {
               email,
               custom: {
