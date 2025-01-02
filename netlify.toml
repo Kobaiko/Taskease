@@ -12,7 +12,7 @@
       style-src 'self' 'unsafe-inline';
       img-src 'self' data: https: blob:;
       font-src 'self';
-      connect-src 'self' https://*.lemonsqueezy.com https://api.lemonsqueezy.com https://*.googleapis.com https://*.google-analytics.com https://*.firebaseio.com https://*.cloudfunctions.net https://securetoken.googleapis.com;
+      connect-src 'self' https://*.lemonsqueezy.com https://api.lemonsqueezy.com https://*.googleapis.com https://*.google-analytics.com https://*.firebaseio.com https://*.cloudfunctions.net https://securetoken.googleapis.com https://api.openai.com;
       frame-src https://*.lemonsqueezy.com;
       frame-ancestors 'none';
       form-action 'self';
