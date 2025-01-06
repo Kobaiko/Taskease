@@ -1,13 +1,22 @@
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 
 const LEMON_SQUEEZY_API_URL = 'https://api.lemonsqueezy.com/v1';
+
+// Log the API key presence and first few characters (safely)
+const apiKey = import.meta.env.VITE_LEMONSQUEEZY_API;
+console.log('API Key Info:', {
+  present: !!apiKey,
+  startsWithBearer: apiKey?.startsWith('Bearer'),
+  length: apiKey?.length,
+  firstChars: apiKey ? `${apiKey.slice(0, 6)}...` : 'none'
+});
 
 const api = axios.create({
   baseURL: LEMON_SQUEEZY_API_URL,
   headers: {
     'Accept': 'application/vnd.api+json',
     'Content-Type': 'application/vnd.api+json',
-    'Authorization': `Bearer ${import.meta.env.VIT_LEMONSQUEEZY_API}`
+    'Authorization': `Bearer ${apiKey}`
   }
 });
 
@@ -25,11 +34,22 @@ export const lemonSqueezyService = {
       return response.data.data.map((variant: any) => ({
         id: variant.id,
         name: variant.attributes.name,
-        price: variant.attributes.price / 100, // Convert cents to dollars
+        price: variant.attributes.price / 100,
         description: variant.attributes.description
       }));
     } catch (error) {
-      console.error('Error fetching variants:', error);
+      if (error instanceof AxiosError) {
+        console.error('Error fetching variants:', {
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          data: error.response?.data,
+          message: error.message,
+          headers: {
+            sent: error.config?.headers,
+            received: error.response?.headers
+          }
+        });
+      }
       throw error;
     }
   },
@@ -37,7 +57,15 @@ export const lemonSqueezyService = {
   async createCheckout(variantId: string, email: string): Promise<string> {
     try {
       const storeId = import.meta.env.VITE_LEMONSQUEEZY_STORE_ID;
-      const response = await api.post('/checkouts', {
+      console.log('Creating checkout with:', { 
+        storeId, 
+        variantId, 
+        email,
+        apiKeyPresent: !!apiKey,
+        apiKeyFormat: apiKey?.startsWith('Bearer') ? 'Starts with Bearer' : 'Invalid format'
+      });
+      
+      const payload = {
         data: {
           type: 'checkouts',
           attributes: {
@@ -52,11 +80,27 @@ export const lemonSqueezyService = {
             }
           }
         }
-      });
+      };
+
+      console.log('Request payload:', payload);
       
+      const response = await api.post('/checkouts', payload);
       return response.data.data.attributes.url;
     } catch (error) {
-      console.error('Error creating checkout:', error);
+      if (error instanceof AxiosError) {
+        console.error('Checkout creation failed:', {
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          data: error.response?.data,
+          message: error.message,
+          headers: {
+            sent: error.config?.headers,
+            received: error.response?.headers
+          }
+        });
+      } else {
+        console.error('Non-Axios error:', error);
+      }
       throw error;
     }
   },
@@ -66,7 +110,18 @@ export const lemonSqueezyService = {
       const response = await api.get(`/subscriptions/${subscriptionId}`);
       return response.data.data;
     } catch (error) {
-      console.error('Error fetching subscription:', error);
+      if (error instanceof AxiosError) {
+        console.error('Error fetching subscription:', {
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          data: error.response?.data,
+          message: error.message,
+          headers: {
+            sent: error.config?.headers,
+            received: error.response?.headers
+          }
+        });
+      }
       throw error;
     }
   }
