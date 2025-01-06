@@ -75,17 +75,15 @@ export const lemonSqueezyService = {
           type: 'checkouts',
           attributes: {
             custom_price: null,
-            product_options: {
-              enabled: true,
+            product_options: [{
               name: "TaskEase Subscription",
               description: "Access to TaskEase premium features",
-              media: [],
               redirect_url: `${window.location.origin}/dashboard`,
               receipt_link_url: `${window.location.origin}/dashboard`,
               receipt_button_text: "Access Dashboard",
               receipt_thank_you_note: "Thank you for choosing TaskEase!",
               customer_email: email
-            },
+            }],
             checkout_options: {
               embed: false,
               media: true,
