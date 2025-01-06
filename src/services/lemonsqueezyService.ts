@@ -56,7 +56,12 @@ export const lemonSqueezyService = {
 
   async createCheckout(variantId: string, email: string): Promise<string> {
     try {
-      const storeId = import.meta.env.VITE_LEMONSQUEEZY_STORE_ID;
+      const storeId = parseInt(import.meta.env.VITE_LEMONSQUEEZY_STORE_ID);
+      
+      if (!storeId || isNaN(storeId)) {
+        throw new Error('Invalid store ID');
+      }
+
       console.log('Creating checkout with:', { 
         storeId, 
         variantId, 
@@ -70,19 +75,34 @@ export const lemonSqueezyService = {
           type: 'checkouts',
           attributes: {
             store_id: storeId,
-            variant_id: variantId,
+            variant_id: parseInt(variantId),
             custom_price: null,
             product_options: {
               enabled: true,
-              customer_email: email,
+              name: "TaskEase Subscription",
+              description: "Access to TaskEase premium features",
+              media: [],
+              redirect_url: `${window.location.origin}/dashboard`,
+              receipt_link_url: `${window.location.origin}/dashboard`,
+              receipt_button_text: "Access Dashboard",
               receipt_thank_you_note: "Thank you for choosing TaskEase!",
-              redirect_url: `${window.location.origin}/dashboard`
+              customer_email: email
+            },
+            checkout_options: {
+              embed: false,
+              media: true,
+              logo: true,
+              desc: true,
+              discount: true,
+              dark: false,
+              subscription_preview: true,
+              button_color: "#7C3AED"
             }
           }
         }
       };
 
-      console.log('Request payload:', payload);
+      console.log('Request payload:', JSON.stringify(payload, null, 2));
       
       const response = await api.post('/checkouts', payload);
       return response.data.data.attributes.url;
@@ -98,6 +118,14 @@ export const lemonSqueezyService = {
             received: error.response?.headers
           }
         });
+        
+        // If it's a validation error (422), show the specific validation errors
+        if (error.response?.status === 422 && error.response?.data?.errors) {
+          const validationErrors = error.response.data.errors
+            .map((e: any) => `${e.source?.pointer}: ${e.detail}`)
+            .join(', ');
+          throw new Error(`Validation failed: ${validationErrors}`);
+        }
       } else {
         console.error('Non-Axios error:', error);
       }
