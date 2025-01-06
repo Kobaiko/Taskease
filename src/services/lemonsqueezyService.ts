@@ -56,9 +56,9 @@ export const lemonSqueezyService = {
 
   async createCheckout(variantId: string, email: string): Promise<string> {
     try {
-      const storeId = parseInt(import.meta.env.VITE_LEMONSQUEEZY_STORE_ID);
+      const storeId = import.meta.env.VITE_LEMONSQUEEZY_STORE_ID;
       
-      if (!storeId || isNaN(storeId)) {
+      if (!storeId) {
         throw new Error('Invalid store ID');
       }
 
@@ -74,8 +74,6 @@ export const lemonSqueezyService = {
         data: {
           type: 'checkouts',
           attributes: {
-            store_id: storeId,
-            variant_id: parseInt(variantId),
             custom_price: null,
             product_options: {
               enabled: true,
@@ -97,6 +95,20 @@ export const lemonSqueezyService = {
               dark: false,
               subscription_preview: true,
               button_color: "#7C3AED"
+            }
+          },
+          relationships: {
+            store: {
+              data: {
+                type: 'stores',
+                id: storeId.toString()
+              }
+            },
+            variant: {
+              data: {
+                type: 'variants',
+                id: variantId.toString()
+              }
             }
           }
         }
