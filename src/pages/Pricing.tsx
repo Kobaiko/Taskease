@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -6,7 +6,7 @@ import { Logo } from '../components/Logo';
 import { PricingCard } from '../components/PricingCard';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { PLANS } from '../config/plans';
-import { openCheckout } from '../lib/lemonsqueezy';
+import { lemonSqueezyService } from '../services/lemonsqueezyService';
 
 export function Pricing() {
   const [loading, setLoading] = useState(false);
@@ -23,29 +23,9 @@ export function Pricing() {
     try {
       setError('');
       setLoading(true);
-
-      const response = await fetch('/.netlify/functions/create-checkout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          variantId,
-          email: currentUser.email
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create checkout');
-      }
-
-      const data = await response.json();
-      if (!data.url) {
-        throw new Error('No checkout URL received');
-      }
-
-      await openCheckout(data.url);
+      
+      const checkoutUrl = await lemonSqueezyService.createCheckout(variantId, currentUser.email);
+      window.location.href = checkoutUrl;
     } catch (error) {
       console.error('Error creating checkout:', error);
       setError(
