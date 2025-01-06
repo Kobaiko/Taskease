@@ -3,7 +3,7 @@ import axios, { AxiosError } from 'axios';
 const LEMON_SQUEEZY_API_URL = 'https://api.lemonsqueezy.com/v1';
 
 // Log the API key presence and first few characters (safely)
-const apiKey = import.meta.env.VITE_LEMONSQUEEZY_API;
+const apiKey = import.meta.env.VITE_LEMONSQUEEZY_API?.replace('Bearer ', '');
 console.log('API Key Info:', {
   present: !!apiKey,
   startsWithBearer: apiKey?.startsWith('Bearer'),
@@ -67,32 +67,19 @@ export const lemonSqueezyService = {
         variantId, 
         email,
         apiKeyPresent: !!apiKey,
-        apiKeyFormat: apiKey?.startsWith('Bearer') ? 'Starts with Bearer' : 'Invalid format'
+        apiKeyFormat: apiKey?.startsWith('Bearer') ? 'Starts with Bearer' : 'Valid format'
       });
       
       const payload = {
         data: {
           type: 'checkouts',
           attributes: {
-            custom_price: null,
-            product_options: [{
-              name: "TaskEase Subscription",
-              description: "Access to TaskEase premium features",
-              redirect_url: `${window.location.origin}/dashboard`,
-              receipt_link_url: `${window.location.origin}/dashboard`,
-              receipt_button_text: "Access Dashboard",
-              receipt_thank_you_note: "Thank you for choosing TaskEase!",
-              customer_email: email
-            }],
-            checkout_options: {
-              embed: false,
-              media: true,
-              logo: true,
-              desc: true,
-              discount: true,
-              dark: false,
-              subscription_preview: true,
-              button_color: "#7C3AED"
+            product_options: [],
+            checkout_data: {
+              email,
+              custom: {
+                redirect_url: `${window.location.origin}/dashboard`
+              }
             }
           },
           relationships: {
