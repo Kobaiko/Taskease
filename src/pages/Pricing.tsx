@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Logo } from '../components/Logo';
 import { PricingCard } from '../components/PricingCard';
@@ -68,6 +69,16 @@ export function Pricing() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {currentUser && (
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-8"
+          >
+            <ArrowLeft size={20} />
+            <span>Return to Dashboard</span>
+          </Link>
+        )}
+
         <div className="text-center mb-12">
           <Logo size="lg" />
           <h1 className="mt-8 text-4xl font-bold text-gray-900 dark:text-white">
