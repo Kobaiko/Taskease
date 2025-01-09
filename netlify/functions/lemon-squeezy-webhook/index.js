@@ -21,14 +21,17 @@ const verifyWebhookSignature = (payload, signature) => {
   return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest));
 };
 
-const handleOrderCreated = async (event) => {
-  const { data } = event;
-  const userEmail = data.attributes.checkout_data?.custom?.user_email;
+const handleSubscriptionCreated = async (event) => {
+  const { data, meta } = event;
+  // Get user email from custom data
+  const userEmail = meta.custom_data?.user_email;
   
   if (!userEmail) {
-    console.error('No user email found in order data');
+    console.error('No user email found in subscription data');
     return;
   }
+
+  console.log('Processing subscription for user:', userEmail);
 
   // Find user by email
   const usersRef = db.collection('users');
@@ -40,18 +43,22 @@ const handleOrderCreated = async (event) => {
   }
 
   const userDoc = userSnapshot.docs[0];
-  const userData = userDoc.data();
 
-  // Update user's credits and subscription status
-  await userDoc.ref.update({
-    credits: 150, // Set initial credits
-    subscriptionStatus: 'active',
+  // Update user's subscription status and credits
+  const updateData = {
+    credits: 150,
+    subscriptionStatus: data.attributes.status,
     subscriptionId: data.id,
     subscriptionVariantId: data.attributes.variant_id,
-    subscriptionStartDate: new Date().toISOString(),
-  });
+    subscriptionStartDate: data.attributes.created_at,
+    subscriptionRenewsAt: data.attributes.renews_at,
+    subscriptionUrls: data.attributes.urls,
+    subscriptionCardBrand: data.attributes.card_brand,
+    subscriptionCardLastFour: data.attributes.card_last_four
+  };
 
-  console.log(`Updated user ${userEmail} with subscription and credits`);
+  await userDoc.ref.update(updateData);
+  console.log(`Updated subscription for user ${userEmail}:`, updateData);
 };
 
 exports.handler = async (event) => {
@@ -74,13 +81,12 @@ exports.handler = async (event) => {
     const payload = JSON.parse(event.body);
     const eventName = payload.meta.event_name;
 
-    console.log('Received Lemon Squeezy webhook:', eventName);
+    console.log('Received Lemon Squeezy webhook:', eventName, 'for user:', payload.meta.custom_data?.user_email);
 
     switch (eventName) {
-      case 'order_created':
-        await handleOrderCreated(payload);
+      case 'subscription_created':
+        await handleSubscriptionCreated(payload);
         break;
-      // Add more event handlers as needed
       default:
         console.log(`Unhandled event type: ${eventName}`);
     }

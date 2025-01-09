@@ -23,23 +23,26 @@
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
 
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
+# Webhook endpoint must come first
 [[redirects]]
   from = "/api/webhook/lemonsqueezy"
   to = "/.netlify/functions/lemon-squeezy-webhook"
   status = 200
   force = true
   methods = ["POST"]
+
+# Then other API routes
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+# Catch-all must come last
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
