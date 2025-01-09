@@ -32,3 +32,14 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+[[redirects]]
+  from = "/api/webhook/lemonsqueezy"
+  to = "/.netlify/functions/lemon-squeezy-webhook"
+  status = 200
+  force = true
+  methods = ["POST"]

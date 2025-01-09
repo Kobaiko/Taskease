@@ -74,12 +74,24 @@ export const lemonSqueezyService = {
         data: {
           type: 'checkouts',
           attributes: {
+            custom_price: null,
             product_options: [],
             checkout_data: {
-              email,
+              email: email,
               custom: {
+                user_email: email,
                 redirect_url: `${window.location.origin}/dashboard`
               }
+            },
+            checkout_options: {
+              embed: false,
+              media: true,
+              logo: true,
+              desc: true,
+              discount: true,
+              dark: false,
+              subscription_preview: true,
+              button_color: "#7C3AED"
             }
           },
           relationships: {
