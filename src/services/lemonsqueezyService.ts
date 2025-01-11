@@ -1,5 +1,4 @@
 import axios, { AxiosError } from 'axios';
-import { initializeApp, applicationDefault, getApps } from 'firebase-admin/app';
 
 const LEMON_SQUEEZY_API_URL = 'https://api.lemonsqueezy.com/v1';
 
@@ -163,9 +162,3 @@ export const lemonSqueezyService = {
     }
   }
 };
-
-if (!getApps().length) {
-  initializeApp({
-    credential: applicationDefault(),
-  });
-}
