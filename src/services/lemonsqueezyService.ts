@@ -74,15 +74,10 @@ export const lemonSqueezyService = {
         data: {
           type: 'checkouts',
           attributes: {
-            store_id: parseInt(storeId),
-            variant_id: parseInt(variantId),
             custom_price: null,
             product_options: {
-              name: "TaskEase Subscription",
-              description: "Access to TaskEase premium features",
               redirect_url: `${window.location.origin}/dashboard`,
-              receipt_thank_you_note: "Thank you for choosing TaskEase!",
-              customer_email: email
+              receipt_thank_you_note: "Thank you for choosing TaskEase!"
             },
             checkout_options: {
               embed: false,
@@ -95,8 +90,23 @@ export const lemonSqueezyService = {
               button_color: "#7C3AED"
             },
             checkout_data: {
+              email: email,
               custom: {
                 user_email: email
+              }
+            }
+          },
+          relationships: {
+            store: {
+              data: {
+                type: "stores",
+                id: storeId.toString()
+              }
+            },
+            variant: {
+              data: {
+                type: "variants",
+                id: variantId.toString()
               }
             }
           }
