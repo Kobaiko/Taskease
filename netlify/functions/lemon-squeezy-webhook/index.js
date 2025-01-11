@@ -1,21 +1,18 @@
-const { initializeApp, getApps, cert } = require('firebase-admin/app');
+const { initializeApp, getApps, applicationDefault } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 const crypto = require('crypto');
 
 // Initialize Firebase Admin if not already initialized
 if (!getApps().length) {
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY;
-  if (!privateKey) {
-    throw new Error('FIREBASE_PRIVATE_KEY environment variable is not set');
+  try {
+    initializeApp({
+      credential: applicationDefault(),
+    });
+    console.log('Firebase initialized with application default credentials');
+  } catch (error) {
+    console.error('Error initializing Firebase:', error);
+    throw error;
   }
-
-  initializeApp({
-    credential: cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: privateKey.replace(/\\n/g, '\n'),
-    }),
-  });
 }
 
 const db = getFirestore();
@@ -41,7 +38,7 @@ const updateUserSubscription = async (event) => {
     const userEmail = meta.custom_data?.user_email;
     
     if (!userEmail) {
-      console.error('No user email found in subscription data. Meta:', meta);
+      console.error('No user email found in custom_data. Meta:', meta);
       return;
     }
 
@@ -127,14 +124,16 @@ exports.handler = async (event) => {
       testMode: payload.meta.test_mode
     });
 
-    // Handle both subscription created and updated events
+    // Handle subscription-related events
     switch (eventName) {
       case 'subscription_created':
       case 'subscription_updated':
+      case 'order_created':
+      case 'subscription_payment_success':
         await updateUserSubscription(payload);
         break;
       default:
-        console.log(`Unhandled event type: ${eventName}`);
+        console.log(`Event type ${eventName} doesn't require user update`);
     }
 
     return {

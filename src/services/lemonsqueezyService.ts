@@ -1,4 +1,5 @@
 import axios, { AxiosError } from 'axios';
+import { initializeApp, applicationDefault, getApps } from 'firebase-admin/app';
 
 const LEMON_SQUEEZY_API_URL = 'https://api.lemonsqueezy.com/v1';
 
@@ -77,7 +78,6 @@ export const lemonSqueezyService = {
             custom_price: null,
             product_options: [],
             checkout_data: {
-              email: email,
               custom: {
                 user_email: email,
                 redirect_url: `${window.location.origin}/dashboard`
@@ -163,3 +163,9 @@ export const lemonSqueezyService = {
     }
   }
 };
+
+if (!getApps().length) {
+  initializeApp({
+    credential: applicationDefault(),
+  });
+}
