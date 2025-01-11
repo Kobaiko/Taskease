@@ -76,7 +76,7 @@ export const lemonSqueezyService = {
           attributes: {
             custom_price: null,
             product_options: {
-              redirect_url: `${window.location.origin}/dashboard`,
+              redirect_url: "https://app.gettaskease.com/dashboard",
               receipt_thank_you_note: "Thank you for choosing TaskEase!"
             },
             checkout_options: {
@@ -90,10 +90,13 @@ export const lemonSqueezyService = {
               button_color: "#7C3AED"
             },
             checkout_data: {
-              email: email,
               custom: {
                 user_email: email
               }
+            },
+            customer_email: email,
+            billing_address: {
+              email: email
             }
           },
           relationships: {

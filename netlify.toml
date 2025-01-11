@@ -29,11 +29,10 @@
 
 # Webhook endpoint must come first
 [[redirects]]
-  from = "/api/webhook/lemonsqueezy"
+  from = "/api/webhook"
   to = "/.netlify/functions/lemon-squeezy-webhook"
   status = 200
   force = true
-  methods = ["POST"]
 
 # Then other API routes
 [[redirects]]
@@ -46,3 +45,4 @@
   from = "/*"
   to = "/index.html"
   status = 200
+  force = true
