@@ -77,10 +77,14 @@ export const lemonSqueezyService = {
             custom_price: null,
             product_options: [],
             checkout_data: {
+              email: email,
               custom: {
                 user_email: email,
                 redirect_url: `${window.location.origin}/dashboard`
               }
+            },
+            billing_address: {
+              email: email
             },
             checkout_options: {
               embed: false,

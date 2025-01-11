@@ -44,21 +44,21 @@ const updateUserSubscription = async (event) => {
 
     console.log('Processing subscription for user:', userEmail);
 
-    // Find user by email
-    const usersRef = db.collection('users');
-    const userSnapshot = await usersRef.where('email', '==', userEmail).get();
+    // Find user by email in user_subscriptions collection
+    const userSubsRef = db.collection('user_subscriptions');
+    const userSubsSnapshot = await userSubsRef.where('userId', '==', userEmail).get();
 
-    if (userSnapshot.empty) {
-      console.error(`No user found with email: ${userEmail}`);
+    if (userSubsSnapshot.empty) {
+      console.error(`No user subscription found with email: ${userEmail}`);
       return;
     }
 
-    const userDoc = userSnapshot.docs[0];
-    console.log('Found user document:', userDoc.id);
+    const userSubDoc = userSubsSnapshot.docs[0];
+    console.log('Found user subscription document:', userSubDoc.id);
 
-    // Update user's subscription status and credits
+    // Update subscription data
     const updateData = {
-      credits: 150, // Set initial credits for new subscriptions
+      creditsUsed: 0,
       subscriptionStatus: data.attributes.status,
       subscriptionId: data.id,
       subscriptionVariantId: data.attributes.variant_id,
@@ -70,19 +70,33 @@ const updateUserSubscription = async (event) => {
       lastUpdated: new Date().toISOString()
     };
 
-    console.log('Updating user with data:', updateData);
+    console.log('Updating user subscription with data:', updateData);
 
-    await userDoc.ref.update(updateData);
+    // Update user_subscriptions collection
+    await userSubDoc.ref.update(updateData);
     console.log(`Successfully updated subscription for user ${userEmail}`);
+
+    // Update credits in the main users collection
+    const usersRef = db.collection('users');
+    const userSnapshot = await usersRef.where('email', '==', userEmail).get();
+
+    if (!userSnapshot.empty) {
+      const userDoc = userSnapshot.docs[0];
+      await userDoc.ref.update({
+        credits: 150,
+        subscriptionStatus: data.attributes.status
+      });
+      console.log(`Successfully updated credits for user ${userEmail}`);
+    }
     
-    // Verify the update
-    const updatedDoc = await userDoc.ref.get();
-    const updatedData = updatedDoc.data();
-    console.log('Updated user data:', {
-      credits: updatedData.credits,
-      subscriptionStatus: updatedData.subscriptionStatus,
-      subscriptionId: updatedData.subscriptionId,
-      lastUpdated: updatedData.lastUpdated
+    // Verify the updates
+    const updatedSubDoc = await userSubDoc.ref.get();
+    const updatedSubData = updatedSubDoc.data();
+    console.log('Updated subscription data:', {
+      creditsUsed: updatedSubData.creditsUsed,
+      subscriptionStatus: updatedSubData.subscriptionStatus,
+      subscriptionId: updatedSubData.subscriptionId,
+      lastUpdated: updatedSubData.lastUpdated
     });
   } catch (error) {
     console.error('Error in updateUserSubscription:', error);
