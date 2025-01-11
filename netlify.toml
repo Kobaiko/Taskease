@@ -4,6 +4,16 @@
   functions = "netlify/functions"
 
 [[headers]]
+  for = "/*.js"
+  [headers.values]
+    Content-Type = "text/javascript"
+
+[[headers]]
+  for = "/*.css"
+  [headers.values]
+    Content-Type = "text/css"
+
+[[headers]]
   for = "/*"
   [headers.values]
     Content-Security-Policy = """
@@ -27,7 +37,14 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
-# Webhook endpoint must come first
+# Static assets should be handled first
+[[redirects]]
+  from = "/assets/*"
+  to = "/assets/:splat"
+  status = 200
+  force = true
+
+# Webhook endpoint must come second
 [[redirects]]
   from = "/api/webhook"
   to = "/.netlify/functions/lemon-squeezy-webhook"
