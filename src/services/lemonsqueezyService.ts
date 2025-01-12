@@ -75,9 +75,12 @@ export const lemonSqueezyService = {
           type: 'checkouts',
           attributes: {
             custom_price: null,
-            product_options: {
-              redirect_url: "https://app.gettaskease.com/dashboard",
-              receipt_thank_you_note: "Thank you for choosing TaskEase!"
+            product_options: [],
+            checkout_data: {
+              email: email,
+              custom: {
+                user_email: email
+              }
             },
             checkout_options: {
               embed: false,
@@ -89,27 +92,19 @@ export const lemonSqueezyService = {
               subscription_preview: true,
               button_color: "#7C3AED"
             },
-            checkout_data: {
-              custom: {
-                user_email: email
-              }
-            },
-            customer_email: email,
-            billing_address: {
-              email: email
-            }
+            success_url: import.meta.env.PROD ? "https://app.gettaskease.com/dashboard" : `${window.location.origin}/dashboard`
           },
           relationships: {
             store: {
               data: {
                 type: "stores",
-                id: storeId.toString()
+                id: storeId
               }
             },
             variant: {
               data: {
                 type: "variants",
-                id: variantId.toString()
+                id: variantId
               }
             }
           }
@@ -127,10 +122,7 @@ export const lemonSqueezyService = {
           statusText: error.response?.statusText,
           data: error.response?.data,
           message: error.message,
-          headers: {
-            sent: error.config?.headers,
-            received: error.response?.headers
-          }
+          headers: error.response?.headers
         });
         
         // If it's a validation error (422), show the specific validation errors
@@ -140,8 +132,6 @@ export const lemonSqueezyService = {
             .join(', ');
           throw new Error(`Validation failed: ${validationErrors}`);
         }
-      } else {
-        console.error('Non-Axios error:', error);
       }
       throw error;
     }
