@@ -3,10 +3,12 @@ import axios, { AxiosError } from 'axios';
 const LEMON_SQUEEZY_API_URL = 'https://api.lemonsqueezy.com/v1';
 
 // Log the API key presence and first few characters (safely)
-const apiKey = import.meta.env.VITE_LEMONSQUEEZY_API?.replace('Bearer ', '');
+const apiKey = import.meta.env.VITE_LEMONSQUEEZY_API;
+const formattedApiKey = apiKey?.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`;
+
 console.log('API Key Info:', {
   present: !!apiKey,
-  startsWithBearer: apiKey?.startsWith('Bearer'),
+  startsWithBearer: formattedApiKey.startsWith('Bearer'),
   length: apiKey?.length,
   firstChars: apiKey ? `${apiKey.slice(0, 6)}...` : 'none'
 });
@@ -16,7 +18,7 @@ const api = axios.create({
   headers: {
     'Accept': 'application/vnd.api+json',
     'Content-Type': 'application/vnd.api+json',
-    'Authorization': `Bearer ${apiKey}`
+    'Authorization': formattedApiKey
   }
 });
 
@@ -76,7 +78,7 @@ export const lemonSqueezyService = {
           attributes: {
             custom_price: null,
             product_options: [],
-            checkout_options: {
+            checkout_options: [{
               embed: false,
               media: true,
               logo: true,
@@ -87,7 +89,7 @@ export const lemonSqueezyService = {
               button_color: "#7C3AED",
               redirect_url: import.meta.env.PROD ? "https://app.gettaskease.com" : window.location.origin,
               receipt_thank_you_note: "Thank you for choosing TaskEase!"
-            },
+            }],
             checkout_data: {
               email: email,
               custom: {
