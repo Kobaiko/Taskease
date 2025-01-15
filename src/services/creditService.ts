@@ -2,52 +2,55 @@ import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import type { UserCredits } from '../types';
 
-const CREDITS_COLLECTION = 'credits';
+const USERS_COLLECTION = 'users';
 const INITIAL_CREDITS = 3;
 
 export async function initializeUserCredits(userId: string): Promise<void> {
-  const creditRef = doc(db, CREDITS_COLLECTION, userId);
-  const creditDoc = await getDoc(creditRef);
+  const userRef = doc(db, USERS_COLLECTION, userId);
+  const userDoc = await getDoc(userRef);
 
-  if (!creditDoc.exists()) {
-    const userCredits: UserCredits = {
-      userId,
+  if (!userDoc.exists()) {
+    const userData = {
+      id: userId,
       credits: INITIAL_CREDITS,
-      lastUpdated: new Date()
+      lastCreditUpdate: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
-    await setDoc(creditRef, userCredits);
+    await setDoc(userRef, userData);
   }
 }
 
 export async function getUserCredits(userId: string): Promise<number> {
-  const creditRef = doc(db, CREDITS_COLLECTION, userId);
-  const creditDoc = await getDoc(creditRef);
+  const userRef = doc(db, USERS_COLLECTION, userId);
+  const userDoc = await getDoc(userRef);
 
-  if (!creditDoc.exists()) {
+  if (!userDoc.exists()) {
     await initializeUserCredits(userId);
     return INITIAL_CREDITS;
   }
 
-  return creditDoc.data().credits;
+  return userDoc.data().credits || 0;
 }
 
 export async function deductCredit(userId: string): Promise<number> {
-  const creditRef = doc(db, CREDITS_COLLECTION, userId);
-  const creditDoc = await getDoc(creditRef);
+  const userRef = doc(db, USERS_COLLECTION, userId);
+  const userDoc = await getDoc(userRef);
 
-  if (!creditDoc.exists()) {
-    throw new Error('User credits not found');
+  if (!userDoc.exists()) {
+    throw new Error('User not found');
   }
 
-  const currentCredits = creditDoc.data().credits;
+  const currentCredits = userDoc.data().credits || 0;
   if (currentCredits <= 0) {
     throw new Error('No credits remaining');
   }
 
   const newCredits = currentCredits - 1;
-  await updateDoc(creditRef, {
+  await updateDoc(userRef, {
     credits: newCredits,
-    lastUpdated: new Date()
+    lastCreditUpdate: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   });
 
   return newCredits;

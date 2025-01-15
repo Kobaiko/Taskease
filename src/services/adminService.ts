@@ -1,11 +1,10 @@
 import { collection, doc, getDoc, getDocs, query, setDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import type { AdminUser, UserSubscriptionData } from '../types';
+import type { AdminUser } from '../types';
 
 const ADMINS_COLLECTION = 'admins';
-const CREDITS_COLLECTION = 'credits';
+const USERS_COLLECTION = 'users';
 const USER_SUBSCRIPTIONS_COLLECTION = 'user_subscriptions';
-const SUBSCRIPTIONS_COLLECTION = 'subscriptions';
 
 export async function isUserAdmin(email: string): Promise<boolean> {
   if (!email) return false;
@@ -26,33 +25,25 @@ export async function initializeFirstAdmin(): Promise<void> {
     };
     await setDoc(adminRef, admin);
 
-    // Set up subscription for admin
-    const subscriptionId = crypto.randomUUID();
-    
-    // Add subscription
-    await setDoc(doc(db, SUBSCRIPTIONS_COLLECTION, subscriptionId), {
-      id: subscriptionId,
-      userId: adminEmail,
-      planId: 'yearly-plan',
-      status: 'active',
-      currentPeriodEnd: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year from now
-      cancelAtPeriodEnd: false,
-      createdAt: Timestamp.now()
-    });
-
-    // Add user subscription data
-    await setDoc(doc(db, USER_SUBSCRIPTIONS_COLLECTION, adminEmail), {
-      subscriptionId,
-      creditsUsed: 0,
-      trialEndsAt: null, // No trial for admin
+    // Create admin user document with unlimited credits
+    const userId = adminEmail.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    await setDoc(doc(db, USERS_COLLECTION, userId), {
+      id: userId,
+      email: adminEmail,
+      credits: 999999,
+      lastCreditUpdate: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       isAdmin: true
     });
 
-    // Add initial credits
-    await setDoc(doc(db, CREDITS_COLLECTION, adminEmail), {
-      userId: adminEmail,
-      credits: 999999, // Unlimited credits for admin
-      lastUpdated: new Date()
+    // Add user subscription data
+    await setDoc(doc(db, USER_SUBSCRIPTIONS_COLLECTION, userId), {
+      subscriptionId: 'admin',
+      creditsUsed: 0,
+      trialEndsAt: null,
+      isAdmin: true,
+      updatedAt: new Date().toISOString()
     });
   }
 }
@@ -69,26 +60,28 @@ export async function addAdmin(email: string, addedByEmail: string): Promise<voi
 
 export async function getAllUsers(): Promise<Array<{
   id: string;
+  email: string;
   credits: number;
   lastUpdated: Date;
 }>> {
-  const creditsSnapshot = await getDocs(collection(db, CREDITS_COLLECTION));
+  const usersSnapshot = await getDocs(collection(db, USERS_COLLECTION));
   
-  return creditsSnapshot.docs.map(doc => {
-    const data = doc.data() as UserSubscriptionData;
+  return usersSnapshot.docs.map(doc => {
+    const data = doc.data();
     return {
       id: doc.id,
-      credits: data.credits,
-      lastUpdated: data.lastUpdated ? new Date(data.lastUpdated.seconds * 1000) : new Date()
+      email: data.email,
+      credits: data.credits || 0,
+      lastUpdated: data.lastCreditUpdate ? new Date(data.lastCreditUpdate) : new Date()
     };
   });
 }
 
 export async function setUserCredits(userId: string, credits: number): Promise<void> {
-  const creditRef = doc(db, CREDITS_COLLECTION, userId);
-  await setDoc(creditRef, {
-    userId,
+  const userRef = doc(db, USERS_COLLECTION, userId);
+  await setDoc(userRef, {
     credits,
-    lastUpdated: new Date()
+    lastCreditUpdate: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   }, { merge: true });
 }

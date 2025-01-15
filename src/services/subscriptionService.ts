@@ -1,10 +1,9 @@
-import { doc, setDoc, getDoc, updateDoc, collection, Timestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, collection, Timestamp, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import type { Subscription, UserSubscriptionData } from '../types/subscription';
 
-const SUBSCRIPTIONS_COLLECTION = 'subscriptions';
+const USERS_COLLECTION = 'users';
 const USER_SUBSCRIPTIONS_COLLECTION = 'user_subscriptions';
-const CREDITS_COLLECTION = 'credits';
 
 export async function getUserSubscriptionData(userId: string): Promise<UserSubscriptionData | null> {
   try {
@@ -27,19 +26,25 @@ export async function handleSubscriptionSuccess(
   subscriptionId: string,
   planId: string
 ): Promise<void> {
-  const batch = db.batch();
+  const batch = writeBatch(db);
 
-  // Update subscription status
-  const subscriptionRef = doc(db, SUBSCRIPTIONS_COLLECTION, subscriptionId);
-  batch.set(subscriptionRef, {
-    id: subscriptionId,
-    userId,
-    planId,
-    status: 'active',
-    currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-    cancelAtPeriodEnd: false,
-    createdAt: Timestamp.now()
-  });
+  // Update user document with credits and subscription info
+  const userRef = doc(db, USERS_COLLECTION, userId);
+  const userDoc = await getDoc(userRef);
+  
+  const userData = userDoc.exists() ? userDoc.data() : {};
+  batch.set(userRef, {
+    ...userData,
+    id: userId,
+    credits: 150,
+    lastCreditUpdate: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    subscriptionId,
+    subscriptionPlanId: planId,
+    subscriptionStatus: 'active',
+    subscriptionStartDate: new Date().toISOString(),
+    subscriptionRenewsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+  }, { merge: true });
 
   // Update user subscription data
   const userSubRef = doc(db, USER_SUBSCRIPTIONS_COLLECTION, userId);
@@ -47,42 +52,35 @@ export async function handleSubscriptionSuccess(
     subscriptionId,
     creditsUsed: 0,
     isSubscribed: true,
-    updatedAt: Timestamp.now()
-  });
-
-  // Set credits to 150
-  const creditsRef = doc(db, CREDITS_COLLECTION, userId);
-  batch.set(creditsRef, {
-    userId,
-    credits: 150,
-    lastUpdated: Timestamp.now()
-  });
+    updatedAt: new Date().toISOString()
+  }, { merge: true });
 
   await batch.commit();
 }
 
 export async function cancelSubscription(userId: string): Promise<void> {
-  const userSubRef = doc(db, USER_SUBSCRIPTIONS_COLLECTION, userId);
-  const userSubDoc = await getDoc(userSubRef);
+  const userRef = doc(db, USERS_COLLECTION, userId);
+  const userDoc = await getDoc(userRef);
 
-  if (!userSubDoc.exists()) {
+  if (!userDoc.exists()) {
     throw new Error('No subscription found');
   }
 
-  const { subscriptionId } = userSubDoc.data();
+  const subscriptionId = userDoc.data().subscriptionId;
   if (!subscriptionId) {
     throw new Error('No active subscription found');
   }
 
-  const subscriptionRef = doc(db, SUBSCRIPTIONS_COLLECTION, subscriptionId);
-  await updateDoc(subscriptionRef, {
-    status: 'canceled',
-    cancelAtPeriodEnd: true,
-    updatedAt: Timestamp.now()
+  // Update user document
+  await updateDoc(userRef, {
+    subscriptionStatus: 'canceled',
+    updatedAt: new Date().toISOString()
   });
 
+  // Update user subscription data
+  const userSubRef = doc(db, USER_SUBSCRIPTIONS_COLLECTION, userId);
   await updateDoc(userSubRef, {
     isSubscribed: false,
-    updatedAt: Timestamp.now()
+    updatedAt: new Date().toISOString()
   });
 }
