@@ -88,6 +88,20 @@ export const lemonSqueezyService = {
               }
             },
             test_mode: import.meta.env.DEV || false
+          },
+          relationships: {
+            store: {
+              data: {
+                type: "stores",
+                id: storeId.toString()
+              }
+            },
+            variant: {
+              data: {
+                type: "variants",
+                id: variantId.toString()
+              }
+            }
           }
         }
       };
