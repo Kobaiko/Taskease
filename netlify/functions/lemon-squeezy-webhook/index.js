@@ -34,9 +34,8 @@ const updateUserSubscription = async (event) => {
     console.log('Full webhook payload:', JSON.stringify(event, null, 2));
     
     const { data, meta } = event;
-    // Get user email from custom data
-    const userEmail = meta.custom_data?.user_email;
     const eventName = meta.event_name;
+    const userEmail = meta.custom_data?.user_email;
     
     console.log('Processing webhook:', {
       eventName,
@@ -50,77 +49,134 @@ const updateUserSubscription = async (event) => {
       return;
     }
 
-    console.log('Processing subscription for user:', userEmail);
-
-    // Find user by email in user_subscriptions collection
-    const userSubsRef = db.collection('user_subscriptions');
-    const userSubsSnapshot = await userSubsRef.where('userId', '==', userEmail).get();
-
-    if (userSubsSnapshot.empty) {
-      console.log('Creating new user subscription document for:', userEmail);
-      await userSubsRef.add({
-        userId: userEmail,
-        creditsUsed: 0,
-        subscriptionStatus: data.attributes.status,
-        subscriptionId: data.id,
-        subscriptionVariantId: data.attributes.variant_id,
-        subscriptionStartDate: data.attributes.created_at,
-        subscriptionRenewsAt: data.attributes.renews_at,
-        subscriptionUrls: data.attributes.urls,
-        subscriptionCardBrand: data.attributes.card_brand,
-        subscriptionCardLastFour: data.attributes.card_last_four,
-        lastUpdated: new Date().toISOString()
-      });
+    // Handle different event types
+    switch (eventName) {
+      case 'subscription_created':
+      case 'order_created':
+        // For new subscriptions, ensure user gets initial credits
+        await handleNewSubscription(userEmail, data);
+        break;
+      
+      case 'subscription_updated':
+      case 'subscription_payment_success':
+        // Update subscription status and renew credits if needed
+        await handleSubscriptionUpdate(userEmail, data);
+        break;
+      
+      case 'subscription_cancelled':
+      case 'subscription_expired':
+        // Mark subscription as inactive but don't remove credits immediately
+        await handleSubscriptionEnd(userEmail, data);
+        break;
+      
+      case 'subscription_payment_failed':
+        // Mark subscription for review but don't remove access immediately
+        await handlePaymentFailure(userEmail, data);
+        break;
+      
+      default:
+        console.log(`Event ${eventName} doesn't require subscription update`);
+        return;
     }
+  } catch (error) {
+    console.error('Error in updateUserSubscription:', error);
+    throw error;
+  }
+};
 
-    const userSubDoc = userSubsSnapshot.docs[0];
-    console.log('Found user subscription document:', userSubDoc.id);
+const handleNewSubscription = async (userEmail, data) => {
+  const userSubsRef = db.collection('user_subscriptions');
+  const userSubsSnapshot = await userSubsRef.where('userId', '==', userEmail).get();
 
-    // Update subscription data
-    const updateData = {
-      creditsUsed: 0,
+  const subscriptionData = {
+    userId: userEmail,
+    creditsUsed: 0,
+    subscriptionStatus: data.attributes.status,
+    subscriptionId: data.id,
+    subscriptionVariantId: data.attributes.variant_id,
+    subscriptionStartDate: data.attributes.created_at,
+    subscriptionRenewsAt: data.attributes.renews_at,
+    subscriptionUrls: data.attributes.urls,
+    subscriptionCardBrand: data.attributes.card_brand,
+    subscriptionCardLastFour: data.attributes.card_last_four,
+    lastUpdated: new Date().toISOString()
+  };
+
+  if (userSubsSnapshot.empty) {
+    await userSubsRef.add(subscriptionData);
+  } else {
+    await userSubsSnapshot.docs[0].ref.update(subscriptionData);
+  }
+
+  // Update user credits
+  const usersRef = db.collection('users');
+  const userSnapshot = await usersRef.where('email', '==', userEmail).get();
+
+  if (!userSnapshot.empty) {
+    await userSnapshot.docs[0].ref.update({
+      credits: 150,
+      subscriptionStatus: data.attributes.status
+    });
+  }
+};
+
+const handleSubscriptionUpdate = async (userEmail, data) => {
+  const userSubsRef = db.collection('user_subscriptions');
+  const userSubsSnapshot = await userSubsRef.where('userId', '==', userEmail).get();
+
+  if (!userSubsSnapshot.empty) {
+    await userSubsSnapshot.docs[0].ref.update({
       subscriptionStatus: data.attributes.status,
-      subscriptionId: data.id,
-      subscriptionVariantId: data.attributes.variant_id,
-      subscriptionStartDate: data.attributes.created_at,
       subscriptionRenewsAt: data.attributes.renews_at,
       subscriptionUrls: data.attributes.urls,
-      subscriptionCardBrand: data.attributes.card_brand,
-      subscriptionCardLastFour: data.attributes.card_last_four,
       lastUpdated: new Date().toISOString()
-    };
+    });
 
-    console.log('Updating user subscription with data:', updateData);
-
-    // Update user_subscriptions collection
-    await userSubDoc.ref.update(updateData);
-    console.log(`Successfully updated subscription for user ${userEmail}`);
-
-    // Update credits in the main users collection
+    // Refresh credits on successful payment
     const usersRef = db.collection('users');
     const userSnapshot = await usersRef.where('email', '==', userEmail).get();
 
     if (!userSnapshot.empty) {
-      const userDoc = userSnapshot.docs[0];
-      await userDoc.ref.update({
+      await userSnapshot.docs[0].ref.update({
         credits: 150,
         subscriptionStatus: data.attributes.status
       });
-      console.log(`Successfully updated credits for user ${userEmail}`);
     }
-    
-    // Verify the updates
-    const updatedSubDoc = await userSubDoc.ref.get();
-    const updatedSubData = updatedSubDoc.data();
-    console.log('Updated subscription data:', {
-      creditsUsed: updatedSubData.creditsUsed,
-      subscriptionStatus: updatedSubData.subscriptionStatus,
-      subscriptionId: updatedSubData.subscriptionId,
-      lastUpdated: updatedSubData.lastUpdated
+  }
+};
+
+const handleSubscriptionEnd = async (userEmail, data) => {
+  const userSubsRef = db.collection('user_subscriptions');
+  const userSubsSnapshot = await userSubsRef.where('userId', '==', userEmail).get();
+
+  if (!userSubsSnapshot.empty) {
+    await userSubsSnapshot.docs[0].ref.update({
+      subscriptionStatus: data.attributes.status,
+      subscriptionRenewsAt: data.attributes.renews_at,
+      lastUpdated: new Date().toISOString()
     });
-  } catch (error) {
-    console.error('Error in updateUserSubscription:', error);
-    throw error;
+
+    const usersRef = db.collection('users');
+    const userSnapshot = await usersRef.where('email', '==', userEmail).get();
+
+    if (!userSnapshot.empty) {
+      await userSnapshot.docs[0].ref.update({
+        subscriptionStatus: data.attributes.status
+      });
+    }
+  }
+};
+
+const handlePaymentFailure = async (userEmail, data) => {
+  const userSubsRef = db.collection('user_subscriptions');
+  const userSubsSnapshot = await userSubsRef.where('userId', '==', userEmail).get();
+
+  if (!userSubsSnapshot.empty) {
+    await userSubsSnapshot.docs[0].ref.update({
+      subscriptionStatus: data.attributes.status,
+      lastUpdated: new Date().toISOString(),
+      paymentFailureDate: new Date().toISOString()
+    });
   }
 };
 
