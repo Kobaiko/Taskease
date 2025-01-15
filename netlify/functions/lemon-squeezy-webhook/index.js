@@ -165,19 +165,19 @@ const handleNewSubscription = async (userEmail, data) => {
 
     // Store subscription info
     const userSubsRef = db.collection('user_subscriptions');
-    const subscriptionData = {
+    const subscriptionData = cleanUndefined({
       userId,
       email: userEmail,
-      subscriptionStatus: data.attributes.status,
+      subscriptionStatus: data.attributes.status || 'active',
       subscriptionId: data.id,
       subscriptionVariantId: data.attributes.variant_id,
-      subscriptionStartDate: data.attributes.created_at,
-      subscriptionRenewsAt: data.attributes.renews_at,
+      subscriptionStartDate: data.attributes.created_at || new Date().toISOString(),
+      subscriptionRenewsAt: data.attributes.renews_at || null,
       lastUpdated: new Date().toISOString()
-    };
+    });
 
     await userSubsRef.add(subscriptionData);
-    console.log('[handleNewSubscription] Successfully stored subscription data');
+    console.log('[handleNewSubscription] Successfully stored subscription data:', subscriptionData);
 
     return true;
   } catch (error) {
@@ -211,11 +211,14 @@ const handleSubscriptionUpdate = async (userEmail, data) => {
     const userSubsSnapshot = await userSubsRef.where('userId', '==', userId).get();
 
     if (!userSubsSnapshot.empty) {
-      await userSubsSnapshot.docs[0].ref.update({
-        subscriptionStatus: data.attributes.status,
-        subscriptionRenewsAt: data.attributes.renews_at,
+      const updateData = cleanUndefined({
+        subscriptionStatus: data.attributes.status || 'active',
+        subscriptionRenewsAt: data.attributes.renews_at || null,
         lastUpdated: new Date().toISOString()
       });
+      
+      console.log('[handleSubscriptionUpdate] Updating with data:', updateData);
+      await userSubsSnapshot.docs[0].ref.update(updateData);
       console.log('[handleSubscriptionUpdate] Updated subscription data');
     } else {
       // If no subscription found, create one
