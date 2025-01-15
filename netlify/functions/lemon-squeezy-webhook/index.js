@@ -63,22 +63,17 @@ const updateUserCredits = async (userEmail, credits = 150) => {
   try {
     console.log(`[updateUserCredits] Starting credit update for ${userEmail} to ${credits}`);
     
-    // Update in users collection
+    // First, get or create user document to get the user ID
     const usersRef = db.collection('users');
     const userSnapshot = await usersRef.where('email', '==', userEmail).get();
 
-    const updateData = cleanUndefined({
-      credits,
-      lastCreditUpdate: new Date().toISOString()
-    });
-
     let userId;
+    let userRef;
 
     if (!userSnapshot.empty) {
-      const userDoc = userSnapshot.docs[0];
-      userId = userDoc.id;
-      await userDoc.ref.update(updateData);
-      console.log(`[updateUserCredits] Updated user document for ${userEmail}`);
+      userRef = userSnapshot.docs[0].ref;
+      userId = userSnapshot.docs[0].id;
+      console.log(`[updateUserCredits] Found existing user with ID: ${userId}`);
     } else {
       console.log(`[updateUserCredits] Creating new user document for ${userEmail}`);
       const newUserData = cleanUndefined({
@@ -87,12 +82,21 @@ const updateUserCredits = async (userEmail, credits = 150) => {
         lastCreditUpdate: new Date().toISOString(),
         createdAt: new Date().toISOString()
       });
-      const newUserDoc = await usersRef.add(newUserData);
-      userId = newUserDoc.id;
-      console.log(`[updateUserCredits] Created new user document for ${userEmail}`);
+      userRef = await usersRef.add(newUserData);
+      userId = userRef.id;
+      console.log(`[updateUserCredits] Created new user with ID: ${userId}`);
     }
 
-    // Update in credits collection
+    // Update credits in both collections
+    const batch = db.batch();
+
+    // Update user document
+    batch.update(userRef, cleanUndefined({
+      credits,
+      lastCreditUpdate: new Date().toISOString()
+    }));
+
+    // Update or create credits document
     const creditsRef = db.collection('credits');
     const creditsSnapshot = await creditsRef.where('userId', '==', userId).get();
 
@@ -104,15 +108,20 @@ const updateUserCredits = async (userEmail, credits = 150) => {
     });
 
     if (!creditsSnapshot.empty) {
-      await creditsSnapshot.docs[0].ref.update(creditsData);
-      console.log(`[updateUserCredits] Updated credits document for ${userEmail}`);
+      batch.update(creditsSnapshot.docs[0].ref, creditsData);
+      console.log(`[updateUserCredits] Updating existing credits document for ${userEmail}`);
     } else {
-      await creditsRef.add({
+      const newCreditsRef = creditsRef.doc();
+      batch.set(newCreditsRef, {
         ...creditsData,
         createdAt: new Date().toISOString()
       });
-      console.log(`[updateUserCredits] Created new credits document for ${userEmail}`);
+      console.log(`[updateUserCredits] Creating new credits document for ${userEmail}`);
     }
+
+    // Commit all updates atomically
+    await batch.commit();
+    console.log(`[updateUserCredits] Successfully updated credits for ${userEmail} in both collections`);
 
     return true;
   } catch (error) {
