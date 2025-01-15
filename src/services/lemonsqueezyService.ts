@@ -69,7 +69,7 @@ export const lemonSqueezyService = {
       
       const payload = {
         data: {
-          type: 'checkouts',
+          type: "checkouts",
           attributes: {
             product_options: {
               name: "TaskEase Subscription",
@@ -77,11 +77,11 @@ export const lemonSqueezyService = {
               receipt_button_text: "Go to TaskEase",
               receipt_thank_you_note: "Thank you for choosing TaskEase!"
             },
-            checkout_data: {
-              email,
-              custom: {
-                user_email: email
-              }
+            custom_data: {
+              user_email: email
+            },
+            customer_data: {
+              email
             }
           },
           relationships: {

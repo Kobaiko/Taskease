@@ -36,6 +36,17 @@ if (!getApps().length) {
 
 const db = getFirestore();
 
+// Helper function to clean undefined values from an object
+const cleanUndefined = (obj) => {
+  const cleaned = {};
+  Object.entries(obj).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      cleaned[key] = value;
+    }
+  });
+  return cleaned;
+};
+
 const verifyWebhookSignature = (payload, signature) => {
   try {
     const hmac = crypto.createHmac('sha256', process.env.LEMONSQUEEZY_WEBHOOK_SECRET);
@@ -54,22 +65,24 @@ const updateUserCredits = async (userEmail, credits = 150) => {
     const usersRef = db.collection('users');
     const userSnapshot = await usersRef.where('email', '==', userEmail).get();
 
+    const updateData = cleanUndefined({
+      credits,
+      lastCreditUpdate: new Date().toISOString()
+    });
+
     if (!userSnapshot.empty) {
-      await userSnapshot.docs[0].ref.update({
-        credits,
-        lastCreditUpdate: new Date().toISOString()
-      });
+      await userSnapshot.docs[0].ref.update(updateData);
       console.log(`[updateUserCredits] Successfully updated credits for ${userEmail}`);
       return true;
     } else {
-      console.error(`[updateUserCredits] User document not found for email: ${userEmail}`);
-      // Create user document if it doesn't exist
-      await usersRef.add({
+      console.log(`[updateUserCredits] Creating new user document for ${userEmail}`);
+      const newUserData = cleanUndefined({
         email: userEmail,
         credits,
         lastCreditUpdate: new Date().toISOString(),
         createdAt: new Date().toISOString()
       });
+      await usersRef.add(newUserData);
       console.log(`[updateUserCredits] Created new user document for ${userEmail}`);
       return true;
     }
@@ -82,6 +95,7 @@ const updateUserCredits = async (userEmail, credits = 150) => {
 const handleNewSubscription = async (userEmail, data) => {
   try {
     console.log('[handleNewSubscription] Starting for:', userEmail);
+    console.log('[handleNewSubscription] Data:', JSON.stringify(data, null, 2));
     
     if (!data?.attributes) {
       throw new Error('Invalid subscription data: missing attributes');
@@ -90,7 +104,7 @@ const handleNewSubscription = async (userEmail, data) => {
     const userSubsRef = db.collection('user_subscriptions');
     const userSubsSnapshot = await userSubsRef.where('userId', '==', userEmail).get();
 
-    const subscriptionData = {
+    const subscriptionData = cleanUndefined({
       userId: userEmail,
       creditsUsed: 0,
       subscriptionStatus: data.attributes.status,
@@ -102,7 +116,7 @@ const handleNewSubscription = async (userEmail, data) => {
       subscriptionCardBrand: data.attributes.card_brand,
       subscriptionCardLastFour: data.attributes.card_last_four,
       lastUpdated: new Date().toISOString()
-    };
+    });
 
     if (userSubsSnapshot.empty) {
       await userSubsRef.add(subscriptionData);
@@ -124,6 +138,7 @@ const handleNewSubscription = async (userEmail, data) => {
 const handleSubscriptionUpdate = async (userEmail, data) => {
   try {
     console.log('[handleSubscriptionUpdate] Starting for:', userEmail);
+    console.log('[handleSubscriptionUpdate] Data:', JSON.stringify(data, null, 2));
     
     if (!data?.attributes) {
       throw new Error('Invalid subscription data: missing attributes');
@@ -133,12 +148,14 @@ const handleSubscriptionUpdate = async (userEmail, data) => {
     const userSubsSnapshot = await userSubsRef.where('userId', '==', userEmail).get();
 
     if (!userSubsSnapshot.empty) {
-      await userSubsSnapshot.docs[0].ref.update({
+      const updateData = cleanUndefined({
         subscriptionStatus: data.attributes.status,
         subscriptionRenewsAt: data.attributes.renews_at,
         subscriptionUrls: data.attributes.urls,
         lastUpdated: new Date().toISOString()
       });
+
+      await userSubsSnapshot.docs[0].ref.update(updateData);
       console.log('[handleSubscriptionUpdate] Updated subscription document');
 
       // Refresh credits on successful payment
@@ -157,6 +174,7 @@ const handleSubscriptionUpdate = async (userEmail, data) => {
 const updateUserSubscription = async (event) => {
   try {
     console.log('[updateUserSubscription] Processing event:', event.meta?.event_name);
+    console.log('[updateUserSubscription] Full event:', JSON.stringify(event, null, 2));
     
     // Always use custom_data.user_email as the source of truth
     const userEmail = event.meta?.custom_data?.user_email;
