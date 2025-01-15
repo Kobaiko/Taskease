@@ -29,62 +29,27 @@ const verifyWebhookSignature = (payload, signature) => {
   }
 };
 
-const updateUserSubscription = async (event) => {
-  try {
-    console.log('Full webhook payload:', JSON.stringify(event, null, 2));
-    
-    const { data, meta } = event;
-    const eventName = meta.event_name;
-    const userEmail = meta.custom_data?.user_email;
-    
-    console.log('Processing webhook:', {
-      eventName,
-      userEmail,
-      dataEmail: data.attributes.user_email,
-      customData: meta.custom_data
-    });
-    
-    if (!userEmail) {
-      console.error('No user email found in custom_data. Meta:', meta);
-      return;
-    }
+const updateUserCredits = async (userEmail, credits = 150) => {
+  console.log(`Updating credits for user ${userEmail} to ${credits}`);
+  const usersRef = db.collection('users');
+  const userSnapshot = await usersRef.where('email', '==', userEmail).get();
 
-    // Handle different event types
-    switch (eventName) {
-      case 'subscription_created':
-      case 'order_created':
-        // For new subscriptions, ensure user gets initial credits
-        await handleNewSubscription(userEmail, data);
-        break;
-      
-      case 'subscription_updated':
-      case 'subscription_payment_success':
-        // Update subscription status and renew credits if needed
-        await handleSubscriptionUpdate(userEmail, data);
-        break;
-      
-      case 'subscription_cancelled':
-      case 'subscription_expired':
-        // Mark subscription as inactive but don't remove credits immediately
-        await handleSubscriptionEnd(userEmail, data);
-        break;
-      
-      case 'subscription_payment_failed':
-        // Mark subscription for review but don't remove access immediately
-        await handlePaymentFailure(userEmail, data);
-        break;
-      
-      default:
-        console.log(`Event ${eventName} doesn't require subscription update`);
-        return;
-    }
-  } catch (error) {
-    console.error('Error in updateUserSubscription:', error);
-    throw error;
+  if (!userSnapshot.empty) {
+    await userSnapshot.docs[0].ref.update({
+      credits,
+      lastCreditUpdate: new Date().toISOString()
+    });
+    console.log(`Successfully updated credits for ${userEmail}`);
+    return true;
+  } else {
+    console.error(`User document not found for email: ${userEmail}`);
+    return false;
   }
 };
 
 const handleNewSubscription = async (userEmail, data) => {
+  console.log('Handling new subscription for:', userEmail);
+  
   const userSubsRef = db.collection('user_subscriptions');
   const userSubsSnapshot = await userSubsRef.where('userId', '==', userEmail).get();
 
@@ -108,19 +73,13 @@ const handleNewSubscription = async (userEmail, data) => {
     await userSubsSnapshot.docs[0].ref.update(subscriptionData);
   }
 
-  // Update user credits
-  const usersRef = db.collection('users');
-  const userSnapshot = await usersRef.where('email', '==', userEmail).get();
-
-  if (!userSnapshot.empty) {
-    await userSnapshot.docs[0].ref.update({
-      credits: 150,
-      subscriptionStatus: data.attributes.status
-    });
-  }
+  // Add initial credits
+  await updateUserCredits(userEmail);
 };
 
 const handleSubscriptionUpdate = async (userEmail, data) => {
+  console.log('Handling subscription update for:', userEmail);
+  
   const userSubsRef = db.collection('user_subscriptions');
   const userSubsSnapshot = await userSubsRef.where('userId', '==', userEmail).get();
 
@@ -133,54 +92,59 @@ const handleSubscriptionUpdate = async (userEmail, data) => {
     });
 
     // Refresh credits on successful payment
-    const usersRef = db.collection('users');
-    const userSnapshot = await usersRef.where('email', '==', userEmail).get();
-
-    if (!userSnapshot.empty) {
-      await userSnapshot.docs[0].ref.update({
-        credits: 150,
-        subscriptionStatus: data.attributes.status
-      });
-    }
+    await updateUserCredits(userEmail);
   }
 };
 
-const handleSubscriptionEnd = async (userEmail, data) => {
-  const userSubsRef = db.collection('user_subscriptions');
-  const userSubsSnapshot = await userSubsRef.where('userId', '==', userEmail).get();
-
-  if (!userSubsSnapshot.empty) {
-    await userSubsSnapshot.docs[0].ref.update({
-      subscriptionStatus: data.attributes.status,
-      subscriptionRenewsAt: data.attributes.renews_at,
-      lastUpdated: new Date().toISOString()
-    });
-
-    const usersRef = db.collection('users');
-    const userSnapshot = await usersRef.where('email', '==', userEmail).get();
-
-    if (!userSnapshot.empty) {
-      await userSnapshot.docs[0].ref.update({
-        subscriptionStatus: data.attributes.status
-      });
+const updateUserSubscription = async (event) => {
+  try {
+    // Always use custom_data.user_email as the source of truth
+    const userEmail = event.meta.custom_data?.user_email;
+    if (!userEmail) {
+      console.error('No user email found in custom_data:', event.meta);
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: 'Missing user_email in custom_data' })
+      };
     }
-  }
-};
 
-const handlePaymentFailure = async (userEmail, data) => {
-  const userSubsRef = db.collection('user_subscriptions');
-  const userSubsSnapshot = await userSubsRef.where('userId', '==', userEmail).get();
+    console.log('Processing webhook for user:', userEmail, 'Event:', event.meta.event_name);
+    
+    const { data, meta } = event;
+    const eventName = meta.event_name;
 
-  if (!userSubsSnapshot.empty) {
-    await userSubsSnapshot.docs[0].ref.update({
-      subscriptionStatus: data.attributes.status,
-      lastUpdated: new Date().toISOString(),
-      paymentFailureDate: new Date().toISOString()
-    });
+    switch (eventName) {
+      case 'subscription_created':
+      case 'order_created':
+        await handleNewSubscription(userEmail, data);
+        break;
+      
+      case 'subscription_updated':
+      case 'subscription_payment_success':
+        await handleSubscriptionUpdate(userEmail, data);
+        break;
+      
+      default:
+        console.log(`Event ${eventName} doesn't require credit update`);
+    }
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ 
+        success: true, 
+        email: userEmail,
+        event: eventName
+      })
+    };
+  } catch (error) {
+    console.error('Error in updateUserSubscription:', error);
+    throw error;
   }
 };
 
 exports.handler = async (event) => {
+  console.log('Received webhook request');
+  
   try {
     if (event.httpMethod !== 'POST') {
       return {
@@ -208,19 +172,18 @@ exports.handler = async (event) => {
     }
 
     const webhookData = JSON.parse(event.body);
-    console.log('Received webhook event:', webhookData.meta.event_name);
-
-    await updateUserSubscription(webhookData);
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ received: true })
-    };
+    console.log('Webhook payload:', JSON.stringify(webhookData, null, 2));
+    
+    return await updateUserSubscription(webhookData);
   } catch (error) {
     console.error('Error processing webhook:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: 'Internal server error' })
+      body: JSON.stringify({ 
+        error: 'Internal server error', 
+        details: error.message,
+        stack: error.stack
+      })
     };
   }
 }; 
