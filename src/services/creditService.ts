@@ -30,6 +30,29 @@ export async function updateUserCredits(userId: string, newCredits: number): Pro
   }
 }
 
+export async function deductCredit(userId: string): Promise<number> {
+  const userRef = doc(db, USERS_COLLECTION, userId);
+  const userDoc = await getDoc(userRef);
+
+  if (!userDoc.exists()) {
+    throw new Error('User not found');
+  }
+
+  const currentCredits = userDoc.data().credits || 0;
+  if (currentCredits <= 0) {
+    throw new Error('No credits remaining');
+  }
+
+  const newCredits = currentCredits - 1;
+  await updateDoc(userRef, {
+    credits: newCredits,
+    lastCreditUpdate: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  });
+
+  return newCredits;
+}
+
 export async function initializeUserCredits(userId: string): Promise<void> {
   try {
     const userRef = doc(db, USERS_COLLECTION, userId);
