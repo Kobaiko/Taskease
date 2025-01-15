@@ -62,6 +62,8 @@ const verifyWebhookSignature = (payload, signature) => {
 const updateUserCredits = async (userEmail, credits = 150) => {
   try {
     console.log(`[updateUserCredits] Starting credit update for ${userEmail} to ${credits}`);
+    
+    // Update in users collection
     const usersRef = db.collection('users');
     const userSnapshot = await usersRef.where('email', '==', userEmail).get();
 
@@ -70,10 +72,13 @@ const updateUserCredits = async (userEmail, credits = 150) => {
       lastCreditUpdate: new Date().toISOString()
     });
 
+    let userId;
+
     if (!userSnapshot.empty) {
-      await userSnapshot.docs[0].ref.update(updateData);
-      console.log(`[updateUserCredits] Successfully updated credits for ${userEmail}`);
-      return true;
+      const userDoc = userSnapshot.docs[0];
+      userId = userDoc.id;
+      await userDoc.ref.update(updateData);
+      console.log(`[updateUserCredits] Updated user document for ${userEmail}`);
     } else {
       console.log(`[updateUserCredits] Creating new user document for ${userEmail}`);
       const newUserData = cleanUndefined({
@@ -82,10 +87,34 @@ const updateUserCredits = async (userEmail, credits = 150) => {
         lastCreditUpdate: new Date().toISOString(),
         createdAt: new Date().toISOString()
       });
-      await usersRef.add(newUserData);
+      const newUserDoc = await usersRef.add(newUserData);
+      userId = newUserDoc.id;
       console.log(`[updateUserCredits] Created new user document for ${userEmail}`);
-      return true;
     }
+
+    // Update in credits collection
+    const creditsRef = db.collection('credits');
+    const creditsSnapshot = await creditsRef.where('userId', '==', userId).get();
+
+    const creditsData = cleanUndefined({
+      userId,
+      credits,
+      email: userEmail,
+      lastUpdated: new Date().toISOString()
+    });
+
+    if (!creditsSnapshot.empty) {
+      await creditsSnapshot.docs[0].ref.update(creditsData);
+      console.log(`[updateUserCredits] Updated credits document for ${userEmail}`);
+    } else {
+      await creditsRef.add({
+        ...creditsData,
+        createdAt: new Date().toISOString()
+      });
+      console.log(`[updateUserCredits] Created new credits document for ${userEmail}`);
+    }
+
+    return true;
   } catch (error) {
     console.error('[updateUserCredits] Error:', error);
     throw error;

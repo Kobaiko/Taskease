@@ -80,9 +80,12 @@ export const lemonSqueezyService = {
             custom_data: {
               user_email: email
             },
-            customer_data: {
-              email
-            }
+            customer: {
+              email: email
+            },
+            email: email,
+            preview: false,
+            test_mode: import.meta.env.DEV
           },
           relationships: {
             store: {
