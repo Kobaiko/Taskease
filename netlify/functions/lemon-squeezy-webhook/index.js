@@ -96,43 +96,63 @@ const updateUserCredits = async (userEmail, credits = 150) => {
     const usersRef = db.collection('users');
     console.log('[updateUserCredits] Querying users collection for:', userEmail);
     
-    const userSnapshot = await usersRef.where('email', '==', userEmail).get();
-    console.log('[updateUserCredits] User query result:', {
-      exists: !userSnapshot.empty,
-      docCount: userSnapshot.size
-    });
+    // Create a clean user ID from the email
+    const userId = userEmail.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    console.log(`[updateUserCredits] Using userId: ${userId}`);
 
-    if (!userSnapshot.empty) {
-      const userDoc = userSnapshot.docs[0];
-      const userData = userDoc.data();
+    // Get the user document using the deterministic ID
+    const userDoc = usersRef.doc(userId);
+    const userSnapshot = await userDoc.get();
+
+    if (userSnapshot.exists) {
+      const userData = userSnapshot.data();
       console.log(`[updateUserCredits] Found existing user:`, {
-        userId: userDoc.id,
+        userId,
         currentCredits: userData.credits,
         email: userData.email
       });
       
       // Update existing user
-      await userDoc.ref.update({
+      await userDoc.set({
+        ...userData,
         credits,
-        lastCreditUpdate: new Date().toISOString()
-      });
-      console.log(`[updateUserCredits] Updated credits for existing user ${userDoc.id}`);
+        lastCreditUpdate: new Date().toISOString(),
+        email: userEmail, // Ensure email is up to date
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      
+      console.log(`[updateUserCredits] Updated credits for existing user ${userId}`);
     } else {
-      // Create new user
+      // Create new user with deterministic ID
       const newUserData = {
+        id: userId,
         email: userEmail,
         credits,
         lastCreditUpdate: new Date().toISOString(),
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
       console.log('[updateUserCredits] Creating new user:', newUserData);
       
-      const newUserRef = await usersRef.add(newUserData);
-      console.log(`[updateUserCredits] Created new user with ID: ${newUserRef.id}`);
+      await userDoc.set(newUserData);
+      console.log(`[updateUserCredits] Created new user with ID: ${userId}`);
+    }
+
+    // Store subscription info in a subcollection
+    const subscriptionsRef = userDoc.collection('subscriptions');
+    const activeSubQuery = await subscriptionsRef
+      .where('status', '==', 'active')
+      .limit(1)
+      .get();
+
+    if (!activeSubQuery.empty) {
+      console.log('[updateUserCredits] User has active subscription');
+    } else {
+      console.log('[updateUserCredits] No active subscription found');
     }
 
     console.log(`[updateUserCredits] Successfully updated credits for ${userEmail}`);
-    return true;
+    return userId;
   } catch (error) {
     console.error('[updateUserCredits] Error:', {
       message: error.message,
@@ -152,31 +172,25 @@ const handleNewSubscription = async (userEmail, data) => {
       throw new Error('Invalid subscription data: missing attributes');
     }
 
-    // Update user credits first
-    await updateUserCredits(userEmail, 150);
+    // Update user credits first and get userId
+    const userId = await updateUserCredits(userEmail, 150);
 
     // Get the user document
-    const usersRef = db.collection('users');
-    const userSnapshot = await usersRef.where('email', '==', userEmail).get();
-    if (userSnapshot.empty) {
-      throw new Error('User not found after credit update');
-    }
-    const userId = userSnapshot.docs[0].id;
-
-    // Store subscription info
-    const userSubsRef = db.collection('user_subscriptions');
+    const userDoc = db.collection('users').doc(userId);
+    
+    // Add subscription to user's subscriptions subcollection
+    const subscriptionsRef = userDoc.collection('subscriptions');
     const subscriptionData = cleanUndefined({
-      userId,
-      email: userEmail,
-      subscriptionStatus: data.attributes.status || 'active',
+      status: data.attributes.status || 'active',
       subscriptionId: data.id,
-      subscriptionVariantId: data.attributes.variant_id,
-      subscriptionStartDate: data.attributes.created_at || new Date().toISOString(),
-      subscriptionRenewsAt: data.attributes.renews_at || null,
-      lastUpdated: new Date().toISOString()
+      variantId: data.attributes.variant_id,
+      startDate: data.attributes.created_at || new Date().toISOString(),
+      renewsAt: data.attributes.renews_at || null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     });
 
-    await userSubsRef.add(subscriptionData);
+    await subscriptionsRef.doc(data.id).set(subscriptionData);
     console.log('[handleNewSubscription] Successfully stored subscription data:', subscriptionData);
 
     return true;
@@ -195,30 +209,25 @@ const handleSubscriptionUpdate = async (userEmail, data) => {
       throw new Error('Invalid subscription data: missing attributes');
     }
 
-    // Update user credits first
-    await updateUserCredits(userEmail, 150);
+    // Update user credits first and get userId
+    const userId = await updateUserCredits(userEmail, 150);
 
     // Get the user document
-    const usersRef = db.collection('users');
-    const userSnapshot = await usersRef.where('email', '==', userEmail).get();
-    if (userSnapshot.empty) {
-      throw new Error('User not found after credit update');
-    }
-    const userId = userSnapshot.docs[0].id;
+    const userDoc = db.collection('users').doc(userId);
+    
+    // Update subscription in user's subscriptions subcollection
+    const subscriptionRef = userDoc.collection('subscriptions').doc(data.id);
+    const subscriptionSnapshot = await subscriptionRef.get();
 
-    // Update subscription info
-    const userSubsRef = db.collection('user_subscriptions');
-    const userSubsSnapshot = await userSubsRef.where('userId', '==', userId).get();
-
-    if (!userSubsSnapshot.empty) {
+    if (subscriptionSnapshot.exists) {
       const updateData = cleanUndefined({
-        subscriptionStatus: data.attributes.status || 'active',
-        subscriptionRenewsAt: data.attributes.renews_at || null,
-        lastUpdated: new Date().toISOString()
+        status: data.attributes.status || 'active',
+        renewsAt: data.attributes.renews_at || null,
+        updatedAt: new Date().toISOString()
       });
       
-      console.log('[handleSubscriptionUpdate] Updating with data:', updateData);
-      await userSubsSnapshot.docs[0].ref.update(updateData);
+      console.log('[handleSubscriptionUpdate] Updating subscription with data:', updateData);
+      await subscriptionRef.set(updateData, { merge: true });
       console.log('[handleSubscriptionUpdate] Updated subscription data');
     } else {
       // If no subscription found, create one
@@ -334,14 +343,51 @@ exports.handler = async (event) => {
     }
 
     const webhookData = JSON.parse(event.body);
-    console.log('[webhook] Processing webhook data:', {
-      eventName: webhookData.meta?.event_name,
-      userEmail: webhookData.meta?.custom_data?.user_email,
-      hasData: !!webhookData.data,
+    console.log('[webhook] Full webhook payload:', JSON.stringify(webhookData, null, 2));
+    console.log('[webhook] Customer data:', {
+      customData: webhookData.meta?.custom_data,
+      customerEmail: webhookData.data?.attributes?.user_email,
+      customerName: webhookData.data?.attributes?.user_name,
+      billingEmail: webhookData.data?.attributes?.billing_email,
+      metaEmail: webhookData.meta?.custom_data?.user_email,
       timestamp: new Date().toISOString()
     });
     
-    return await updateUserSubscription(webhookData);
+    // Get email from multiple possible sources
+    const userEmail = webhookData.meta?.custom_data?.user_email || 
+                     webhookData.data?.attributes?.user_email ||
+                     webhookData.data?.attributes?.billing_email;
+
+    if (!userEmail) {
+      console.error('[webhook] No email found in webhook data');
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ 
+          error: 'No email found in webhook data',
+          webhookData: webhookData
+        })
+      };
+    }
+
+    // Process the webhook with the found email
+    const result = await updateUserSubscription({
+      ...webhookData,
+      meta: {
+        ...webhookData.meta,
+        custom_data: {
+          ...webhookData.meta?.custom_data,
+          user_email: userEmail
+        }
+      }
+    });
+
+    console.log('[webhook] Processing complete:', {
+      email: userEmail,
+      status: result.statusCode,
+      response: result.body
+    });
+
+    return result;
   } catch (error) {
     console.error('[webhook] Error:', {
       message: error.message,
