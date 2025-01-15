@@ -72,11 +72,11 @@ export const lemonSqueezyService = {
           type: "checkouts",
           attributes: {
             checkout_data: {
-              email,
               custom: {
                 user_email: email
               }
             },
+            customer_email: email,
             product_options: {
               name: "TaskEase Subscription",
               description: "Subscription to TaskEase - AI Task Management",
