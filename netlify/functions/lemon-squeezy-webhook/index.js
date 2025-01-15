@@ -1,16 +1,35 @@
-const { initializeApp, getApps, applicationDefault } = require('firebase-admin/app');
+const { initializeApp, getApps, cert } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 const crypto = require('crypto');
 
 // Initialize Firebase Admin if not already initialized
 if (!getApps().length) {
   try {
+    // Get Firebase configuration from environment variables
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+
+    if (!projectId || !clientEmail || !privateKey) {
+      throw new Error('Missing Firebase configuration. Required: FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY');
+    }
+
     initializeApp({
-      credential: applicationDefault(),
+      credential: cert({
+        projectId,
+        clientEmail,
+        privateKey,
+      }),
     });
-    console.log('Firebase initialized with application default credentials');
+    
+    console.log('Firebase initialized successfully with project:', projectId);
   } catch (error) {
-    console.error('Error initializing Firebase:', error);
+    console.error('Firebase initialization error:', {
+      message: error.message,
+      projectId: process.env.FIREBASE_PROJECT_ID ? 'present' : 'missing',
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL ? 'present' : 'missing',
+      privateKey: process.env.FIREBASE_PRIVATE_KEY ? 'present' : 'missing'
+    });
     throw error;
   }
 }
