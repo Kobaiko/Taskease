@@ -246,15 +246,27 @@ const updateUserSubscription = async (event) => {
     console.log('[updateUserSubscription] Processing event:', event.meta?.event_name);
     console.log('[updateUserSubscription] Full event:', JSON.stringify(event, null, 2));
     
-    // Always use custom_data.user_email as the source of truth
-    const userEmail = event.meta?.custom_data?.user_email;
+    // Get email from custom_data first, then fallback to other sources
+    const userEmail = event.meta?.custom_data?.user_email || 
+                     event.data?.attributes?.custom_data?.user_email ||
+                     event.data?.attributes?.billing_email;
+
     if (!userEmail) {
-      console.error('[updateUserSubscription] No user email found in custom_data:', event.meta);
+      console.error('[updateUserSubscription] No user email found:', {
+        meta: event.meta,
+        attributes: event.data?.attributes,
+        customData: event.meta?.custom_data,
+        attributesCustomData: event.data?.attributes?.custom_data
+      });
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: 'Missing user_email in custom_data' })
+        body: JSON.stringify({ error: 'Missing user_email in webhook data' })
       };
     }
+
+    // Clean and normalize the email
+    const normalizedEmail = userEmail.toLowerCase().trim();
+    console.log('[updateUserSubscription] Using email:', normalizedEmail);
 
     if (!event.data) {
       console.error('[updateUserSubscription] No data in event');
@@ -264,7 +276,7 @@ const updateUserSubscription = async (event) => {
       };
     }
 
-    console.log('[updateUserSubscription] Processing for user:', userEmail, 'Event:', event.meta.event_name);
+    console.log('[updateUserSubscription] Processing for user:', normalizedEmail, 'Event:', event.meta.event_name);
     
     const { data, meta } = event;
     const eventName = meta.event_name;
@@ -272,12 +284,12 @@ const updateUserSubscription = async (event) => {
     switch (eventName) {
       case 'subscription_created':
       case 'order_created':
-        await handleNewSubscription(userEmail, data);
+        await handleNewSubscription(normalizedEmail, data);
         break;
       
       case 'subscription_updated':
       case 'subscription_payment_success':
-        await handleSubscriptionUpdate(userEmail, data);
+        await handleSubscriptionUpdate(normalizedEmail, data);
         break;
       
       default:
@@ -288,7 +300,7 @@ const updateUserSubscription = async (event) => {
       statusCode: 200,
       body: JSON.stringify({ 
         success: true, 
-        email: userEmail,
+        email: normalizedEmail,
         event: eventName
       })
     };

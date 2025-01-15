@@ -72,6 +72,12 @@ export const lemonSqueezyService = {
           type: "checkouts",
           attributes: {
             custom_price: null,
+            checkout_data: {
+              email,
+              custom: {
+                user_email: email
+              }
+            },
             product_options: {
               name: "TaskEase Subscription",
               description: "Subscription to TaskEase - AI Task Management",
@@ -79,11 +85,8 @@ export const lemonSqueezyService = {
               receipt_button_text: "Go to TaskEase",
               receipt_thank_you_note: "Thank you for choosing TaskEase!"
             },
-            checkout_data: {
-              email: email,
-              custom: {
-                user_email: email
-              }
+            custom_data: {
+              user_email: email
             },
             test_mode: import.meta.env.DEV || false
           },
@@ -91,13 +94,13 @@ export const lemonSqueezyService = {
             store: {
               data: {
                 type: "stores",
-                id: storeId
+                id: storeId.toString()
               }
             },
             variant: {
               data: {
                 type: "variants",
-                id: variantId
+                id: variantId.toString()
               }
             }
           }
