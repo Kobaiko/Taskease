@@ -78,7 +78,25 @@ export const lemonSqueezyService = {
           attributes: {
             custom_price: null,
             product_options: [],
-            checkout_options: [{
+            checkout_options: [
+              "embed",
+              "media",
+              "logo",
+              "desc",
+              "discount",
+              "dark",
+              "subscription_preview",
+              "button_color",
+              "redirect_url",
+              "receipt_thank_you_note"
+            ],
+            checkout_data: {
+              email: email,
+              custom: {
+                user_email: email
+              }
+            },
+            checkout_options_data: {
               embed: false,
               media: true,
               logo: true,
@@ -89,12 +107,6 @@ export const lemonSqueezyService = {
               button_color: "#7C3AED",
               redirect_url: import.meta.env.PROD ? "https://app.gettaskease.com" : window.location.origin,
               receipt_thank_you_note: "Thank you for choosing TaskEase!"
-            }],
-            checkout_data: {
-              email: email,
-              custom: {
-                user_email: email
-              }
             }
           },
           relationships: {
