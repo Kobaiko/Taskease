@@ -45,11 +45,7 @@ export const lemonSqueezyService = {
           status: error.response?.status,
           statusText: error.response?.statusText,
           data: error.response?.data,
-          message: error.message,
-          headers: {
-            sent: error.config?.headers,
-            received: error.response?.headers
-          }
+          message: error.message
         });
       }
       throw error;
@@ -68,45 +64,24 @@ export const lemonSqueezyService = {
         storeId, 
         variantId, 
         email,
-        apiKeyPresent: !!apiKey,
-        apiKeyFormat: apiKey?.startsWith('Bearer') ? 'Starts with Bearer' : 'Valid format'
+        apiKeyPresent: !!apiKey
       });
       
       const payload = {
         data: {
           type: 'checkouts',
           attributes: {
-            custom_price: null,
-            product_options: [],
-            checkout_options: [
-              "embed",
-              "media",
-              "logo",
-              "desc",
-              "discount",
-              "dark",
-              "subscription_preview",
-              "button_color",
-              "redirect_url",
-              "receipt_thank_you_note"
-            ],
+            product_options: {
+              name: "TaskEase Subscription",
+              redirect_url: import.meta.env.PROD ? "https://app.gettaskease.com" : window.location.origin,
+              receipt_button_text: "Go to TaskEase",
+              receipt_thank_you_note: "Thank you for choosing TaskEase!"
+            },
             checkout_data: {
-              email: email,
+              email,
               custom: {
                 user_email: email
               }
-            },
-            checkout_options_data: {
-              embed: false,
-              media: true,
-              logo: true,
-              desc: true,
-              discount: true,
-              dark: false,
-              subscription_preview: true,
-              button_color: "#7C3AED",
-              redirect_url: import.meta.env.PROD ? "https://app.gettaskease.com" : window.location.origin,
-              receipt_thank_you_note: "Thank you for choosing TaskEase!"
             }
           },
           relationships: {
@@ -136,11 +111,9 @@ export const lemonSqueezyService = {
           status: error.response?.status,
           statusText: error.response?.statusText,
           data: error.response?.data,
-          message: error.message,
-          headers: error.response?.headers
+          message: error.message
         });
         
-        // If it's a validation error (422), show the specific validation errors
         if (error.response?.status === 422 && error.response?.data?.errors) {
           const validationErrors = error.response.data.errors
             .map((e: any) => `${e.source?.pointer}: ${e.detail}`)
@@ -162,11 +135,7 @@ export const lemonSqueezyService = {
           status: error.response?.status,
           statusText: error.response?.statusText,
           data: error.response?.data,
-          message: error.message,
-          headers: {
-            sent: error.config?.headers,
-            received: error.response?.headers
-          }
+          message: error.message
         });
       }
       throw error;
