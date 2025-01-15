@@ -138,12 +138,32 @@ const handleNewSubscription = async (userEmail, data) => {
     if (!data?.attributes) {
       throw new Error('Invalid subscription data: missing attributes');
     }
+
+    // First get or create the user to get the correct ID
+    const usersRef = db.collection('users');
+    const userSnapshot = await usersRef.where('email', '==', userEmail).get();
+
+    let userId;
+    if (!userSnapshot.empty) {
+      userId = userSnapshot.docs[0].id;
+      console.log(`[handleNewSubscription] Found existing user with ID: ${userId}`);
+    } else {
+      const newUserDoc = await usersRef.add({
+        email: userEmail,
+        credits: 150,
+        createdAt: new Date().toISOString(),
+        lastCreditUpdate: new Date().toISOString()
+      });
+      userId = newUserDoc.id;
+      console.log(`[handleNewSubscription] Created new user with ID: ${userId}`);
+    }
     
     const userSubsRef = db.collection('user_subscriptions');
-    const userSubsSnapshot = await userSubsRef.where('userId', '==', userEmail).get();
+    const userSubsSnapshot = await userSubsRef.where('userId', '==', userId).get();
 
     const subscriptionData = cleanUndefined({
-      userId: userEmail,
+      userId,
+      email: userEmail,
       creditsUsed: 0,
       subscriptionStatus: data.attributes.status,
       subscriptionId: data.id,
@@ -156,17 +176,55 @@ const handleNewSubscription = async (userEmail, data) => {
       lastUpdated: new Date().toISOString()
     });
 
+    // Use a batch for atomic updates
+    const batch = db.batch();
+
     if (userSubsSnapshot.empty) {
-      await userSubsRef.add(subscriptionData);
-      console.log('[handleNewSubscription] Created new subscription document');
+      const newSubsRef = userSubsRef.doc();
+      batch.set(newSubsRef, subscriptionData);
+      console.log('[handleNewSubscription] Creating new subscription document');
     } else {
-      await userSubsSnapshot.docs[0].ref.update(subscriptionData);
-      console.log('[handleNewSubscription] Updated existing subscription document');
+      batch.update(userSubsSnapshot.docs[0].ref, subscriptionData);
+      console.log('[handleNewSubscription] Updating existing subscription document');
     }
 
-    // Add initial credits
-    await updateUserCredits(userEmail);
-    console.log('[handleNewSubscription] Completed successfully');
+    // Update credits
+    const creditsRef = db.collection('credits');
+    const creditsSnapshot = await creditsRef.where('userId', '==', userId).get();
+
+    const creditsData = cleanUndefined({
+      userId,
+      credits: 150,
+      email: userEmail,
+      lastUpdated: new Date().toISOString()
+    });
+
+    if (!creditsSnapshot.empty) {
+      batch.update(creditsSnapshot.docs[0].ref, creditsData);
+      console.log('[handleNewSubscription] Updating existing credits document');
+    } else {
+      const newCreditsRef = creditsRef.doc();
+      batch.set(newCreditsRef, {
+        ...creditsData,
+        createdAt: new Date().toISOString()
+      });
+      console.log('[handleNewSubscription] Creating new credits document');
+    }
+
+    // Update user document with credits
+    if (!userSnapshot.empty) {
+      batch.update(userSnapshot.docs[0].ref, {
+        credits: 150,
+        lastCreditUpdate: new Date().toISOString()
+      });
+      console.log('[handleNewSubscription] Updating user credits');
+    }
+
+    // Commit all changes atomically
+    await batch.commit();
+    console.log('[handleNewSubscription] Successfully committed all changes');
+
+    return true;
   } catch (error) {
     console.error('[handleNewSubscription] Error:', error);
     throw error;
@@ -181,9 +239,31 @@ const handleSubscriptionUpdate = async (userEmail, data) => {
     if (!data?.attributes) {
       throw new Error('Invalid subscription data: missing attributes');
     }
+
+    // First get or create the user to get the correct ID
+    const usersRef = db.collection('users');
+    const userSnapshot = await usersRef.where('email', '==', userEmail).get();
+
+    let userId;
+    if (!userSnapshot.empty) {
+      userId = userSnapshot.docs[0].id;
+      console.log(`[handleSubscriptionUpdate] Found existing user with ID: ${userId}`);
+    } else {
+      const newUserDoc = await usersRef.add({
+        email: userEmail,
+        credits: 150,
+        createdAt: new Date().toISOString(),
+        lastCreditUpdate: new Date().toISOString()
+      });
+      userId = newUserDoc.id;
+      console.log(`[handleSubscriptionUpdate] Created new user with ID: ${userId}`);
+    }
     
     const userSubsRef = db.collection('user_subscriptions');
-    const userSubsSnapshot = await userSubsRef.where('userId', '==', userEmail).get();
+    const userSubsSnapshot = await userSubsRef.where('userId', '==', userId).get();
+
+    // Use a batch for atomic updates
+    const batch = db.batch();
 
     if (!userSubsSnapshot.empty) {
       const updateData = cleanUndefined({
@@ -193,12 +273,42 @@ const handleSubscriptionUpdate = async (userEmail, data) => {
         lastUpdated: new Date().toISOString()
       });
 
-      await userSubsSnapshot.docs[0].ref.update(updateData);
-      console.log('[handleSubscriptionUpdate] Updated subscription document');
+      batch.update(userSubsSnapshot.docs[0].ref, updateData);
+      console.log('[handleSubscriptionUpdate] Updating subscription document');
 
-      // Refresh credits on successful payment
-      await updateUserCredits(userEmail);
-      console.log('[handleSubscriptionUpdate] Updated credits');
+      // Update credits
+      const creditsRef = db.collection('credits');
+      const creditsSnapshot = await creditsRef.where('userId', '==', userId).get();
+
+      const creditsData = cleanUndefined({
+        userId,
+        credits: 150,
+        email: userEmail,
+        lastUpdated: new Date().toISOString()
+      });
+
+      if (!creditsSnapshot.empty) {
+        batch.update(creditsSnapshot.docs[0].ref, creditsData);
+        console.log('[handleSubscriptionUpdate] Updating existing credits document');
+      } else {
+        const newCreditsRef = creditsRef.doc();
+        batch.set(newCreditsRef, {
+          ...creditsData,
+          createdAt: new Date().toISOString()
+        });
+        console.log('[handleSubscriptionUpdate] Creating new credits document');
+      }
+
+      // Update user document with credits
+      batch.update(userSnapshot.docs[0].ref, {
+        credits: 150,
+        lastCreditUpdate: new Date().toISOString()
+      });
+      console.log('[handleSubscriptionUpdate] Updating user credits');
+
+      // Commit all changes atomically
+      await batch.commit();
+      console.log('[handleSubscriptionUpdate] Successfully committed all changes');
     } else {
       console.log('[handleSubscriptionUpdate] No existing subscription found, creating new');
       await handleNewSubscription(userEmail, data);
