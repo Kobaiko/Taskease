@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react';
-import { getUserSubscriptionData } from '../services/subscriptionService';
-import type { UserSubscriptionData } from '../types/subscription';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+
+export interface UserSubscriptionData {
+  subscriptionId?: string;
+  subscriptionStatus?: string;
+  subscriptionRenewsAt?: string;
+  credits: number;
+  isSubscribed?: boolean;
+}
 
 export function useSubscription(userId: string | undefined) {
   const [loading, setLoading] = useState(true);
@@ -15,8 +23,19 @@ export function useSubscription(userId: string | undefined) {
       }
 
       try {
-        const data = await getUserSubscriptionData(userId);
-        setSubscriptionData(data);
+        const userDoc = await getDoc(doc(db, 'users', userId));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          setSubscriptionData({
+            subscriptionId: userData.subscriptionId,
+            subscriptionStatus: userData.subscriptionStatus,
+            subscriptionRenewsAt: userData.subscriptionRenewsAt,
+            credits: userData.credits || 0,
+            isSubscribed: userData.subscriptionStatus === 'active'
+          });
+        } else {
+          setSubscriptionData(null);
+        }
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to fetch subscription'));
         console.error('Error fetching subscription:', err);

@@ -1,57 +1,54 @@
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import type { UserCredits } from '../types';
 
 const USERS_COLLECTION = 'users';
-const INITIAL_CREDITS = 3;
-
-export async function initializeUserCredits(userId: string): Promise<void> {
-  const userRef = doc(db, USERS_COLLECTION, userId);
-  const userDoc = await getDoc(userRef);
-
-  if (!userDoc.exists()) {
-    const userData = {
-      id: userId,
-      credits: INITIAL_CREDITS,
-      lastCreditUpdate: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    await setDoc(userRef, userData);
-  }
-}
 
 export async function getUserCredits(userId: string): Promise<number> {
-  const userRef = doc(db, USERS_COLLECTION, userId);
-  const userDoc = await getDoc(userRef);
-
-  if (!userDoc.exists()) {
-    await initializeUserCredits(userId);
-    return INITIAL_CREDITS;
+  try {
+    const userDoc = await getDoc(doc(db, USERS_COLLECTION, userId));
+    if (!userDoc.exists()) {
+      return 0;
+    }
+    return userDoc.data().credits || 0;
+  } catch (error) {
+    console.error('Error getting user credits:', error);
+    throw error;
   }
-
-  return userDoc.data().credits || 0;
 }
 
-export async function deductCredit(userId: string): Promise<number> {
-  const userRef = doc(db, USERS_COLLECTION, userId);
-  const userDoc = await getDoc(userRef);
-
-  if (!userDoc.exists()) {
-    throw new Error('User not found');
+export async function updateUserCredits(userId: string, newCredits: number): Promise<void> {
+  try {
+    const userRef = doc(db, USERS_COLLECTION, userId);
+    await updateDoc(userRef, {
+      credits: newCredits,
+      lastCreditUpdate: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error updating user credits:', error);
+    throw error;
   }
+}
 
-  const currentCredits = userDoc.data().credits || 0;
-  if (currentCredits <= 0) {
-    throw new Error('No credits remaining');
+export async function initializeUserCredits(userId: string): Promise<void> {
+  try {
+    const userRef = doc(db, USERS_COLLECTION, userId);
+    const userDoc = await getDoc(userRef);
+    
+    if (!userDoc.exists()) {
+      throw new Error('User document not found');
+    }
+    
+    const userData = userDoc.data();
+    if (typeof userData.credits === 'undefined') {
+      await updateDoc(userRef, {
+        credits: 0,
+        lastCreditUpdate: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+    }
+  } catch (error) {
+    console.error('Error initializing user credits:', error);
+    throw error;
   }
-
-  const newCredits = currentCredits - 1;
-  await updateDoc(userRef, {
-    credits: newCredits,
-    lastCreditUpdate: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  });
-
-  return newCredits;
 }

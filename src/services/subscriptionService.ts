@@ -1,20 +1,24 @@
-import { doc, setDoc, getDoc, updateDoc, collection, Timestamp, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import type { Subscription, UserSubscriptionData } from '../types/subscription';
 
 const USERS_COLLECTION = 'users';
-const USER_SUBSCRIPTIONS_COLLECTION = 'user_subscriptions';
 
-export async function getUserSubscriptionData(userId: string): Promise<UserSubscriptionData | null> {
+export async function getUserSubscriptionData(userId: string) {
   try {
-    const docRef = doc(db, USER_SUBSCRIPTIONS_COLLECTION, userId);
-    const docSnap = await getDoc(docRef);
+    const userDoc = await getDoc(doc(db, USERS_COLLECTION, userId));
     
-    if (!docSnap.exists()) {
+    if (!userDoc.exists()) {
       return null;
     }
     
-    return docSnap.data() as UserSubscriptionData;
+    const userData = userDoc.data();
+    return {
+      subscriptionId: userData.subscriptionId,
+      subscriptionStatus: userData.subscriptionStatus,
+      subscriptionRenewsAt: userData.subscriptionRenewsAt,
+      credits: userData.credits || 0,
+      isSubscribed: userData.subscriptionStatus === 'active'
+    };
   } catch (error) {
     console.error('Error getting subscription data:', error);
     throw error;
@@ -26,16 +30,14 @@ export async function handleSubscriptionSuccess(
   subscriptionId: string,
   planId: string
 ): Promise<void> {
-  const batch = writeBatch(db);
-
-  // Update user document with credits and subscription info
   const userRef = doc(db, USERS_COLLECTION, userId);
   const userDoc = await getDoc(userRef);
   
-  const userData = userDoc.exists() ? userDoc.data() : {};
-  batch.set(userRef, {
-    ...userData,
-    id: userId,
+  if (!userDoc.exists()) {
+    throw new Error('User not found');
+  }
+
+  await updateDoc(userRef, {
     credits: 150,
     lastCreditUpdate: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -44,18 +46,7 @@ export async function handleSubscriptionSuccess(
     subscriptionStatus: 'active',
     subscriptionStartDate: new Date().toISOString(),
     subscriptionRenewsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-  }, { merge: true });
-
-  // Update user subscription data
-  const userSubRef = doc(db, USER_SUBSCRIPTIONS_COLLECTION, userId);
-  batch.set(userSubRef, {
-    subscriptionId,
-    creditsUsed: 0,
-    isSubscribed: true,
-    updatedAt: new Date().toISOString()
-  }, { merge: true });
-
-  await batch.commit();
+  });
 }
 
 export async function cancelSubscription(userId: string): Promise<void> {
@@ -71,16 +62,8 @@ export async function cancelSubscription(userId: string): Promise<void> {
     throw new Error('No active subscription found');
   }
 
-  // Update user document
   await updateDoc(userRef, {
     subscriptionStatus: 'canceled',
-    updatedAt: new Date().toISOString()
-  });
-
-  // Update user subscription data
-  const userSubRef = doc(db, USER_SUBSCRIPTIONS_COLLECTION, userId);
-  await updateDoc(userSubRef, {
-    isSubscribed: false,
     updatedAt: new Date().toISOString()
   });
 }

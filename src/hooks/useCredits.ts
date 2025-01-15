@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getUserCredits } from '../services/creditService';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { useSubscription } from './useSubscription';
 
 export function useCredits(userId: string | undefined) {
@@ -15,8 +16,10 @@ export function useCredits(userId: string | undefined) {
       }
 
       try {
-        const userCredits = await getUserCredits(userId);
-        setCredits(userCredits);
+        const userDoc = await getDoc(doc(db, 'users', userId));
+        if (userDoc.exists()) {
+          setCredits(userDoc.data().credits || 0);
+        }
       } catch (error) {
         console.error('Error loading credits:', error);
       } finally {
@@ -28,7 +31,7 @@ export function useCredits(userId: string | undefined) {
   }, [userId]);
 
   const hasAvailableCredits = credits > 0 || 
-    (subscriptionData?.trialEndsAt && new Date(subscriptionData.trialEndsAt) > new Date());
+    (subscriptionData?.subscriptionStatus === 'active');
 
   return { credits, loading, hasAvailableCredits };
 }
