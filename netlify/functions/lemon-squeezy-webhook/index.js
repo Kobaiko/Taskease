@@ -36,6 +36,14 @@ const updateUserSubscription = async (event) => {
     const { data, meta } = event;
     // Get user email from custom data
     const userEmail = meta.custom_data?.user_email;
+    const eventName = meta.event_name;
+    
+    console.log('Processing webhook:', {
+      eventName,
+      userEmail,
+      dataEmail: data.attributes.user_email,
+      customData: meta.custom_data
+    });
     
     if (!userEmail) {
       console.error('No user email found in custom_data. Meta:', meta);
@@ -49,8 +57,20 @@ const updateUserSubscription = async (event) => {
     const userSubsSnapshot = await userSubsRef.where('userId', '==', userEmail).get();
 
     if (userSubsSnapshot.empty) {
-      console.error(`No user subscription found with email: ${userEmail}`);
-      return;
+      console.log('Creating new user subscription document for:', userEmail);
+      await userSubsRef.add({
+        userId: userEmail,
+        creditsUsed: 0,
+        subscriptionStatus: data.attributes.status,
+        subscriptionId: data.id,
+        subscriptionVariantId: data.attributes.variant_id,
+        subscriptionStartDate: data.attributes.created_at,
+        subscriptionRenewsAt: data.attributes.renews_at,
+        subscriptionUrls: data.attributes.urls,
+        subscriptionCardBrand: data.attributes.card_brand,
+        subscriptionCardLastFour: data.attributes.card_last_four,
+        lastUpdated: new Date().toISOString()
+      });
     }
 
     const userSubDoc = userSubsSnapshot.docs[0];
@@ -106,63 +126,45 @@ const updateUserSubscription = async (event) => {
 
 exports.handler = async (event) => {
   try {
-    console.log('Received webhook request:', {
-      method: event.httpMethod,
-      headers: event.headers,
-      path: event.path
-    });
-
-    // Only allow POST requests
     if (event.httpMethod !== 'POST') {
-      return { statusCode: 405, body: 'Method Not Allowed' };
+      return {
+        statusCode: 405,
+        body: JSON.stringify({ error: 'Method not allowed' })
+      };
     }
 
     const signature = event.headers['x-signature'];
     if (!signature) {
-      console.error('No signature provided in headers:', event.headers);
-      return { statusCode: 401, body: 'No signature provided' };
+      console.error('No signature found in webhook request');
+      return {
+        statusCode: 401,
+        body: JSON.stringify({ error: 'No signature provided' })
+      };
     }
 
-    // Verify webhook signature
-    if (!verifyWebhookSignature(event.body, signature)) {
-      console.error('Invalid signature. Headers:', event.headers);
-      return { statusCode: 401, body: 'Invalid signature' };
+    const isValid = verifyWebhookSignature(event.body, signature);
+    if (!isValid) {
+      console.error('Invalid webhook signature');
+      return {
+        statusCode: 401,
+        body: JSON.stringify({ error: 'Invalid signature' })
+      };
     }
 
-    const payload = JSON.parse(event.body);
-    const eventName = payload.meta.event_name;
+    const webhookData = JSON.parse(event.body);
+    console.log('Received webhook event:', webhookData.meta.event_name);
 
-    console.log('Processing webhook:', {
-      eventName,
-      userEmail: payload.meta.custom_data?.user_email,
-      testMode: payload.meta.test_mode
-    });
-
-    // Handle subscription-related events
-    switch (eventName) {
-      case 'subscription_created':
-      case 'subscription_updated':
-      case 'order_created':
-      case 'subscription_payment_success':
-        await updateUserSubscription(payload);
-        break;
-      default:
-        console.log(`Event type ${eventName} doesn't require user update`);
-    }
+    await updateUserSubscription(webhookData);
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ received: true }),
+      body: JSON.stringify({ received: true })
     };
   } catch (error) {
-    console.error('Webhook error:', error);
+    console.error('Error processing webhook:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ 
-        error: 'Internal Server Error', 
-        details: error.message,
-        stack: error.stack 
-      }),
+      body: JSON.stringify({ error: 'Internal server error' })
     };
   }
 }; 
