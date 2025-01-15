@@ -5,27 +5,53 @@ const crypto = require('crypto');
 // Initialize Firebase Admin if not already initialized
 if (!getApps().length) {
   try {
+    console.log('[Firebase] Starting initialization...');
+    
     // Get Firebase configuration from environment variables
     const projectId = process.env.FIREBASE_PROJECT_ID;
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
+    console.log('[Firebase] Configuration check:', {
+      hasProjectId: !!projectId,
+      projectIdValue: projectId,
+      hasClientEmail: !!clientEmail,
+      clientEmailLength: clientEmail?.length,
+      hasPrivateKey: !!privateKey,
+      privateKeyLength: privateKey?.length
+    });
+
     if (!projectId || !clientEmail || !privateKey) {
       throw new Error('Missing Firebase configuration. Required: FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY');
     }
 
-    initializeApp({
+    const config = {
       credential: cert({
         projectId,
         clientEmail,
         privateKey,
       }),
+    };
+
+    console.log('[Firebase] Initializing with config:', {
+      projectId,
+      clientEmail: clientEmail ? `${clientEmail.substring(0, 10)}...` : null,
+      privateKeyLength: privateKey?.length
     });
+
+    initializeApp(config);
     
-    console.log('Firebase initialized successfully with project:', projectId);
+    // Test Firestore connection
+    const db = getFirestore();
+    console.log('[Firebase] Testing Firestore connection...');
+    await db.collection('users').limit(1).get();
+    
+    console.log('[Firebase] Initialization successful');
   } catch (error) {
-    console.error('Firebase initialization error:', {
+    console.error('[Firebase] Initialization error:', {
       message: error.message,
+      code: error.code,
+      stack: error.stack,
       projectId: process.env.FIREBASE_PROJECT_ID ? 'present' : 'missing',
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL ? 'present' : 'missing',
       privateKey: process.env.FIREBASE_PRIVATE_KEY ? 'present' : 'missing'
@@ -65,7 +91,13 @@ const updateUserCredits = async (userEmail, credits = 150) => {
     
     // First, get or create user document to get the user ID
     const usersRef = db.collection('users');
+    console.log('[updateUserCredits] Querying users collection for:', userEmail);
+    
     const userSnapshot = await usersRef.where('email', '==', userEmail).get();
+    console.log('[updateUserCredits] User query result:', {
+      exists: !userSnapshot.empty,
+      docCount: userSnapshot.size
+    });
 
     let userId;
     let userRef;
@@ -73,7 +105,12 @@ const updateUserCredits = async (userEmail, credits = 150) => {
     if (!userSnapshot.empty) {
       userRef = userSnapshot.docs[0].ref;
       userId = userSnapshot.docs[0].id;
-      console.log(`[updateUserCredits] Found existing user with ID: ${userId}`);
+      const userData = userSnapshot.docs[0].data();
+      console.log(`[updateUserCredits] Found existing user:`, {
+        userId,
+        currentCredits: userData.credits,
+        email: userData.email
+      });
     } else {
       console.log(`[updateUserCredits] Creating new user document for ${userEmail}`);
       const newUserData = cleanUndefined({
@@ -82,23 +119,33 @@ const updateUserCredits = async (userEmail, credits = 150) => {
         lastCreditUpdate: new Date().toISOString(),
         createdAt: new Date().toISOString()
       });
+      console.log('[updateUserCredits] New user data:', newUserData);
+      
       userRef = await usersRef.add(newUserData);
       userId = userRef.id;
       console.log(`[updateUserCredits] Created new user with ID: ${userId}`);
     }
 
     // Update credits in both collections
+    console.log('[updateUserCredits] Starting batch update');
     const batch = db.batch();
 
     // Update user document
-    batch.update(userRef, cleanUndefined({
+    const userUpdate = cleanUndefined({
       credits,
       lastCreditUpdate: new Date().toISOString()
-    }));
+    });
+    console.log('[updateUserCredits] User update data:', userUpdate);
+    batch.update(userRef, userUpdate);
 
     // Update or create credits document
     const creditsRef = db.collection('credits');
+    console.log('[updateUserCredits] Querying credits collection for userId:', userId);
     const creditsSnapshot = await creditsRef.where('userId', '==', userId).get();
+    console.log('[updateUserCredits] Credits query result:', {
+      exists: !creditsSnapshot.empty,
+      docCount: creditsSnapshot.size
+    });
 
     const creditsData = cleanUndefined({
       userId,
@@ -106,26 +153,33 @@ const updateUserCredits = async (userEmail, credits = 150) => {
       email: userEmail,
       lastUpdated: new Date().toISOString()
     });
+    console.log('[updateUserCredits] Credits update data:', creditsData);
 
     if (!creditsSnapshot.empty) {
       batch.update(creditsSnapshot.docs[0].ref, creditsData);
-      console.log(`[updateUserCredits] Updating existing credits document for ${userEmail}`);
+      console.log(`[updateUserCredits] Updating existing credits document`);
     } else {
       const newCreditsRef = creditsRef.doc();
-      batch.set(newCreditsRef, {
+      const newCreditsData = {
         ...creditsData,
         createdAt: new Date().toISOString()
-      });
-      console.log(`[updateUserCredits] Creating new credits document for ${userEmail}`);
+      };
+      console.log('[updateUserCredits] New credits document data:', newCreditsData);
+      batch.set(newCreditsRef, newCreditsData);
     }
 
     // Commit all updates atomically
+    console.log('[updateUserCredits] Committing batch update');
     await batch.commit();
     console.log(`[updateUserCredits] Successfully updated credits for ${userEmail} in both collections`);
 
     return true;
   } catch (error) {
-    console.error('[updateUserCredits] Error:', error);
+    console.error('[updateUserCredits] Error:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
     throw error;
   }
 };
@@ -377,7 +431,12 @@ const updateUserSubscription = async (event) => {
 };
 
 exports.handler = async (event) => {
-  console.log('[webhook] Received request');
+  console.log('[webhook] Received request', {
+    method: event.httpMethod,
+    headers: event.headers,
+    hasSignature: !!event.headers['x-signature'],
+    bodyLength: event.body?.length
+  });
   
   try {
     if (event.httpMethod !== 'POST') {
@@ -389,16 +448,22 @@ exports.handler = async (event) => {
 
     const signature = event.headers['x-signature'];
     if (!signature) {
-      console.error('[webhook] No signature found in request');
+      console.error('[webhook] No signature found in request', {
+        availableHeaders: Object.keys(event.headers)
+      });
       return {
         statusCode: 401,
         body: JSON.stringify({ error: 'No signature provided' })
       };
     }
 
+    console.log('[webhook] Verifying signature with secret length:', process.env.LEMONSQUEEZY_WEBHOOK_SECRET?.length);
     const isValid = verifyWebhookSignature(event.body, signature);
     if (!isValid) {
-      console.error('[webhook] Invalid signature');
+      console.error('[webhook] Invalid signature', {
+        signatureLength: signature.length,
+        bodyPreview: event.body.substring(0, 100)
+      });
       return {
         statusCode: 401,
         body: JSON.stringify({ error: 'Invalid signature' })
@@ -406,17 +471,25 @@ exports.handler = async (event) => {
     }
 
     const webhookData = JSON.parse(event.body);
-    console.log('[webhook] Payload:', JSON.stringify(webhookData, null, 2));
+    console.log('[webhook] Processing webhook data:', {
+      eventName: webhookData.meta?.event_name,
+      userEmail: webhookData.meta?.custom_data?.user_email,
+      hasData: !!webhookData.data,
+      timestamp: new Date().toISOString()
+    });
     
     return await updateUserSubscription(webhookData);
   } catch (error) {
-    console.error('[webhook] Error:', error);
+    console.error('[webhook] Error:', {
+      message: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
     return {
       statusCode: 500,
       body: JSON.stringify({ 
         error: 'Internal server error', 
         details: error.message,
-        stack: error.stack,
         timestamp: new Date().toISOString()
       })
     };
