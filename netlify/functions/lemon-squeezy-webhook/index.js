@@ -3,64 +3,67 @@ const { getFirestore } = require('firebase-admin/firestore');
 const crypto = require('crypto');
 
 // Initialize Firebase Admin if not already initialized
-if (!getApps().length) {
-  try {
-    console.log('[Firebase] Starting initialization...');
-    
-    // Get Firebase configuration from environment variables
-    const projectId = process.env.FIREBASE_PROJECT_ID;
-    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+const initializeFirebase = async () => {
+  if (!getApps().length) {
+    try {
+      console.log('[Firebase] Starting initialization...');
+      
+      // Get Firebase configuration from environment variables
+      const projectId = process.env.FIREBASE_PROJECT_ID;
+      const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+      const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
-    console.log('[Firebase] Configuration check:', {
-      hasProjectId: !!projectId,
-      projectIdValue: projectId,
-      hasClientEmail: !!clientEmail,
-      clientEmailLength: clientEmail?.length,
-      hasPrivateKey: !!privateKey,
-      privateKeyLength: privateKey?.length
-    });
+      console.log('[Firebase] Configuration check:', {
+        hasProjectId: !!projectId,
+        projectIdValue: projectId,
+        hasClientEmail: !!clientEmail,
+        clientEmailLength: clientEmail?.length,
+        hasPrivateKey: !!privateKey,
+        privateKeyLength: privateKey?.length
+      });
 
-    if (!projectId || !clientEmail || !privateKey) {
-      throw new Error('Missing Firebase configuration. Required: FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY');
-    }
+      if (!projectId || !clientEmail || !privateKey) {
+        throw new Error('Missing Firebase configuration. Required: FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY');
+      }
 
-    const config = {
-      credential: cert({
+      const config = {
+        credential: cert({
+          projectId,
+          clientEmail,
+          privateKey,
+        }),
+      };
+
+      console.log('[Firebase] Initializing with config:', {
         projectId,
-        clientEmail,
-        privateKey,
-      }),
-    };
+        clientEmail: clientEmail ? `${clientEmail.substring(0, 10)}...` : null,
+        privateKeyLength: privateKey?.length
+      });
 
-    console.log('[Firebase] Initializing with config:', {
-      projectId,
-      clientEmail: clientEmail ? `${clientEmail.substring(0, 10)}...` : null,
-      privateKeyLength: privateKey?.length
-    });
-
-    initializeApp(config);
-    
-    // Test Firestore connection
-    const db = getFirestore();
-    console.log('[Firebase] Testing Firestore connection...');
-    await db.collection('users').limit(1).get();
-    
-    console.log('[Firebase] Initialization successful');
-  } catch (error) {
-    console.error('[Firebase] Initialization error:', {
-      message: error.message,
-      code: error.code,
-      stack: error.stack,
-      projectId: process.env.FIREBASE_PROJECT_ID ? 'present' : 'missing',
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL ? 'present' : 'missing',
-      privateKey: process.env.FIREBASE_PRIVATE_KEY ? 'present' : 'missing'
-    });
-    throw error;
+      initializeApp(config);
+      
+      // Test Firestore connection
+      const db = getFirestore();
+      console.log('[Firebase] Testing Firestore connection...');
+      await db.collection('users').limit(1).get();
+      
+      console.log('[Firebase] Initialization successful');
+    } catch (error) {
+      console.error('[Firebase] Initialization error:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack,
+        projectId: process.env.FIREBASE_PROJECT_ID ? 'present' : 'missing',
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL ? 'present' : 'missing',
+        privateKey: process.env.FIREBASE_PRIVATE_KEY ? 'present' : 'missing'
+      });
+      throw error;
+    }
   }
-}
+};
 
-const db = getFirestore();
+// Initialize Firebase before handling any requests
+let db;
 
 // Helper function to clean undefined values from an object
 const cleanUndefined = (obj) => {
@@ -439,6 +442,10 @@ exports.handler = async (event) => {
   });
   
   try {
+    // Initialize Firebase if not already initialized
+    await initializeFirebase();
+    db = getFirestore();
+
     if (event.httpMethod !== 'POST') {
       return {
         statusCode: 405,
